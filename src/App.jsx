@@ -5,7 +5,7 @@ import {
   PlanView, ListaView, BatchView,
   HistorialView, NuevaView,
 } from "./skills/meal-planner/index";
-import { DEFAULT_WEEK, DEFAULT_SHOPS } from "./skills/meal-planner/data";
+import { DEFAULT_WEEK, DEFAULT_SHOPS, DEFAULT_BATCH } from "./skills/meal-planner/data";
 import FoodCosts from "./skills/food-costs/index";
 
 export default function App() {
@@ -62,7 +62,7 @@ function Dashboard() {
       if (!id) {
         id = new Date().toISOString().split("T")[0];
         const label = `Semana ${new Date().toLocaleDateString("es-UY", { day:"numeric", month:"long", year:"numeric" })}`;
-        const seed = { id, label, week:DEFAULT_WEEK, shops:DEFAULT_SHOPS, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
+        const seed = { id, label, week:DEFAULT_WEEK, batch:DEFAULT_BATCH, shops:DEFAULT_SHOPS, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
         await set(ref(db, `dashboard/plans/${id}`), seed);
         await set(ref(db, "dashboard/activeWeekId"), id);
         // onValue will re-fire with the new id — return here
@@ -75,7 +75,14 @@ function Dashboard() {
       const planDbRef = ref(db, `dashboard/plans/${id}`);
       const unsub = onValue(planDbRef, (pSnap) => {
         const plan = pSnap.val();
-        if (plan) setActivePlan(plan);
+        if (plan) {
+          // Backfill batch for plans created before the batch feature
+          if (plan.week && !plan.batch) {
+            plan.batch = DEFAULT_BATCH;
+            set(ref(db, `dashboard/plans/${id}/batch`), DEFAULT_BATCH);
+          }
+          setActivePlan(plan);
+        }
         setFbStatus("ok");
       }, () => setFbStatus("error"));
       unsubRef.current = unsub;

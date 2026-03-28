@@ -80,6 +80,37 @@ export const DEFAULT_SHOPS = [
     ]},
 ];
 
+// Batch items derived from DEFAULT_WEEK — used as seed only.
+// AI-generated plans produce their own batch via the API.
+export const DEFAULT_BATCH = [
+  { id:"b1", title:"Tuco doble", icon:"🍅", color:"#C8401A", bg:"#FDF0EB",
+    when:"~40 min activos",
+    reason:"Lasagna martes + fideos martes noche",
+    steps:["Picada 400g + tomate triturado + cebolla + ajo · rehogar 25 min",
+           "Hacé el DOBLE — mitad lasagna martes, mitad fideos martes noche"],
+    saves:"Martes almuerzo: solo ensamblar · Martes cena: solo hervir fideos 5 min",
+    storage:"Heladera 4 días · congela 3 meses" },
+  { id:"b2", title:"Papas y boniatos al horno", icon:"🥔", color:"#C89000", bg:"#FFFBEE",
+    when:"~25 min (horno)",
+    reason:"Side lunes + puré jueves + puré viernes",
+    steps:["Cubos de papa y boniato · oliva + sal gruesa · 200°C 25 min",
+           "Guardar en tupper hermético en heladera"],
+    saves:"Lunes side en 10 min · Jueves puré: solo pisar · Viernes: recalentar",
+    storage:"Heladera 5 días" },
+  { id:"b3", title:"Huevos duros (6–8 und.)", icon:"🥚", color:"#0A5A28", bg:"#EAF5EF",
+    when:"12 min pasivos",
+    reason:"Pastel de carne jueves",
+    steps:["Hervir 10 min desde hervor · agua fría inmediata · guardar con cáscara"],
+    saves:"Jueves pastel: listos · Cena emergencia: huevo + queso en 0 min",
+    storage:"Heladera 7 días con cáscara" },
+  { id:"b4", title:"Caldo de huesos", icon:"🍲", color:"#1A3A7A", bg:"#EAF0FC",
+    when:"~2hs pasivas",
+    reason:"Pollo lunes + chop suey miércoles → huesos disponibles",
+    steps:["Carcasas o huesos + agua + sal + laurel · fuego mínimo tapado"],
+    saves:"Cena de emergencia · las niñas lo toman como sopa",
+    storage:"Heladera 4 días · congela en porciones" },
+];
+
 export const PLAN_SYSTEM_CONTEXT = `Sos el planificador de comidas de una familia en Montevideo, Uruguay.
 
 FAMILIA
