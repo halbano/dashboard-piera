@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-const PIN = import.meta.env.VITE_APP_PIN || "PIERA";
+const PIN = import.meta.env.VITE_APP_PIN;
 
 export default function PinScreen({ onAuth }) {
   const [val, setVal] = useState("");

@@ -90,7 +90,7 @@ Arrastrar la carpeta `dist/` a [netlify.com/drop](https://app.netlify.com/drop).
 El PIN se configura como variable de entorno:
 
 ```env
-VITE_APP_PIN=PIERA
+VITE_APP_PIN=TU_PIN
 ```
 
 Para cambiarlo: actualizar la variable en Netlify dashboard → redesplegar.
