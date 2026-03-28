@@ -32,6 +32,10 @@ function Dashboard() {
   const [fbShops, setFbShops] = useState(null);
   const [fbStatus, setFbStatus] = useState(FB_READY ? "connecting" : "local");
   const unsubRef = useRef(null);
+  const planRef = useRef(null);           // tracks activePlan without stale closures
+
+  // Keep ref in sync with state
+  useEffect(() => { planRef.current = activePlan; }, [activePlan]);
 
   useEffect(() => {
     if (!db) {
@@ -43,9 +47,7 @@ function Dashboard() {
     // Seed and subscribe to shops config
     const shopsRef = ref(db, "dashboard/config/shops");
     get(shopsRef).then((snap) => {
-      if (!snap.exists()) {
-        set(shopsRef, DEFAULT_SHOPS);
-      }
+      if (!snap.exists()) set(shopsRef, DEFAULT_SHOPS);
     });
     const unsubShops = onValue(shopsRef, (snap) => {
       if (snap.exists()) setFbShops(snap.val());
@@ -53,18 +55,25 @@ function Dashboard() {
 
     // Watch active plan ID
     const activeIdRef = ref(db, "dashboard/activeWeekId");
-    const unsubActive = onValue(activeIdRef, (snap) => {
-      const id = snap.val();
+    const unsubActive = onValue(activeIdRef, async (snap) => {
+      let id = snap.val();
+
+      // First load with no plan — seed a default plan to Firebase
       if (!id) {
-        setFbStatus("ok");
-        setActivePlan({ id:"local", label:"Plan base", week:DEFAULT_WEEK, shops:DEFAULT_SHOPS, shopChecked:{}, batchChecked:{} });
+        id = new Date().toISOString().split("T")[0];
+        const label = `Semana ${new Date().toLocaleDateString("es-UY", { day:"numeric", month:"long", year:"numeric" })}`;
+        const seed = { id, label, week:DEFAULT_WEEK, shops:DEFAULT_SHOPS, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
+        await set(ref(db, `dashboard/plans/${id}`), seed);
+        await set(ref(db, "dashboard/activeWeekId"), id);
+        // onValue will re-fire with the new id — return here
         return;
       }
+
       // Unsubscribe previous plan listener
       if (unsubRef.current) { unsubRef.current(); unsubRef.current = null; }
       // Watch active plan document
-      const planRef = ref(db, `dashboard/plans/${id}`);
-      const unsub = onValue(planRef, (pSnap) => {
+      const planDbRef = ref(db, `dashboard/plans/${id}`);
+      const unsub = onValue(planDbRef, (pSnap) => {
         const plan = pSnap.val();
         if (plan) setActivePlan(plan);
         setFbStatus("ok");
@@ -92,18 +101,21 @@ function Dashboard() {
 
   const updateShop = useCallback(async (id, val) => {
     setActivePlan(p => ({ ...p, shopChecked: { ...(p.shopChecked||{}), [id]: val } }));
-    if (db && activePlan?.id !== "local") await set(ref(db, `dashboard/plans/${activePlan.id}/shopChecked/${id}`), val);
-  }, [activePlan]);
+    const p = planRef.current;
+    if (db && p?.id && p.id !== "local") await set(ref(db, `dashboard/plans/${p.id}/shopChecked/${id}`), val);
+  }, []);
 
   const clearShop = useCallback(async () => {
     setActivePlan(p => ({ ...p, shopChecked: {} }));
-    if (db && activePlan?.id !== "local") await set(ref(db, `dashboard/plans/${activePlan.id}/shopChecked`), {});
-  }, [activePlan]);
+    const p = planRef.current;
+    if (db && p?.id && p.id !== "local") await set(ref(db, `dashboard/plans/${p.id}/shopChecked`), {});
+  }, []);
 
   const updateBatch = useCallback(async (id, val) => {
     setActivePlan(p => ({ ...p, batchChecked: { ...(p.batchChecked||{}), [id]: val } }));
-    if (db && activePlan?.id !== "local") await set(ref(db, `dashboard/plans/${activePlan.id}/batchChecked/${id}`), val);
-  }, [activePlan]);
+    const p = planRef.current;
+    if (db && p?.id && p.id !== "local") await set(ref(db, `dashboard/plans/${p.id}/batchChecked/${id}`), val);
+  }, []);
 
   const shops      = fbShops || activePlan?.shops || DEFAULT_SHOPS;
   const shopChecked  = activePlan?.shopChecked  || {};
