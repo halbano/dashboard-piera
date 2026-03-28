@@ -191,14 +191,14 @@ function MealPlannerSection({ onBack }) {
         </div>
       </div>
 
-      {/* Scrollable body */}
+      {/* Scrollable body — views stay mounted to preserve state */}
       <div style={{ flex:1, overflowY:"auto", padding:"1.25rem", paddingBottom:"calc(72px + env(safe-area-inset-bottom,0))" }}>
         {!activePlan && <div style={{ textAlign:"center", padding:"3rem", color:"#887060", fontSize:".875rem" }}>Cargando…</div>}
-        {activePlan && nav === "plan"  && <PlanView week={activePlan.week}/>}
-        {activePlan && nav === "lista" && <ListaView shops={shops} shopChecked={shopChecked} toggle={updateShop} clear={clearShop} total={totalItems} checked={totalChecked}/>}
-        {activePlan && nav === "batch" && <BatchView batchItems={activePlan.batch} batchChecked={batchChecked} toggle={updateBatch}/>}
-        {nav === "hist"  && <HistorialView allPlanIds={allPlanIds} activePlanId={activePlan?.id}/>}
-        {nav === "nueva" && <NuevaView activePlan={activePlan} shops={shops} onPublish={p => { setActivePlan(p); setNav("plan"); }}/>}
+        {activePlan && <div style={{ display:nav==="plan"?"block":"none" }}><PlanView week={activePlan.week}/></div>}
+        {activePlan && <div style={{ display:nav==="lista"?"block":"none" }}><ListaView shops={shops} shopChecked={shopChecked} toggle={updateShop} clear={clearShop} total={totalItems} checked={totalChecked}/></div>}
+        {activePlan && <div style={{ display:nav==="batch"?"block":"none" }}><BatchView batchItems={activePlan.batch} batchChecked={batchChecked} toggle={updateBatch}/></div>}
+        <div style={{ display:nav==="hist"?"block":"none" }}><HistorialView allPlanIds={allPlanIds} activePlanId={activePlan?.id}/></div>
+        <div style={{ display:nav==="nueva"?"block":"none" }}><NuevaView activePlan={activePlan} shops={shops} onPublish={p => { setActivePlan(p); setNav("plan"); }}/></div>
       </div>
 
       {/* Bottom nav */}
