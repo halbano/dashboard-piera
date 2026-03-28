@@ -127,12 +127,10 @@ export function PlanView({ week, readOnly }) {
       <div style={{ display:"flex", gap:8, marginBottom:"1rem", flexWrap:"wrap", alignItems:"center" }}>
         <Pill bg="#FFF8EC" bo="#E8D090" dot="#C8883A" tx="#7A5000">Lun–Vie · 5 pax</Pill>
         <Pill bg="#F5F0F8" bo="#C8B0E0" dot="#7A4ACC" tx="#4A2A7A">Dom + Sáb · libre</Pill>
-        {!readOnly && (
-          <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
-            <span style={{ fontSize:".75rem", color:"#B8A890" }}>Cenas</span>
-            <Toggle on={showDin} set={setShowDin}/>
-          </div>
-        )}
+        <div style={{ marginLeft:"auto", display:"flex", alignItems:"center", gap:8 }}>
+          <span style={{ fontSize:".75rem", color:"#B8A890" }}>Cenas</span>
+          <Toggle on={showDin} set={setShowDin}/>
+        </div>
       </div>
       {/* Protein strip */}
       <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:3, marginBottom:"1.25rem" }}>
@@ -315,30 +313,49 @@ export function HistorialView({ allPlanIds, activePlanId }) {
 
 export function NuevaView({ activePlan, shops, onPublish }) {
   const [changes, setChanges] = useState("");
+  const [followUp, setFollowUp] = useState("");
   const [status, setStatus] = useState("idle");
   const [preview, setPreview] = useState(null);
   const [err, setErr] = useState("");
+
+  const JSON_INSTRUCTIONS = `Respondé SOLO con un objeto JSON válido con esta estructura exacta:\n{\n  "week": [ ...7 objetos de días... ],\n  "batch": [ ...preparaciones del domingo derivadas del plan... ]\n}\n\nPara "week", cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.\nPara días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.\nValores válidos para type/dt: beef,chicken,eggs,fish,mixed.\n\nPara el array "batch", identificá qué tiene sentido preparar el domingo basándote en el plan de la semana. Incluí SOLO lo que aplica a este plan específico:\n- Bases que se usan en múltiples días (tucos, caldos, salsas)\n- Sides que se repiten 2+ días (vale asar una bandeja grande)\n- Prep que ahorra tiempo en días ocupados (huevos duros si hay pastel, caldo si hay pollo)\n\nCada objeto en "batch": { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }\n\nIconos por tipo: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE\n\nSin markdown, sin texto extra.`;
+
+  const callApi = async (prompt) => {
+    const res = await fetch("/api/generate-plan", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "API error");
+    const text = data.content?.[0]?.text || "";
+    return JSON.parse(text.replace(/```json|```/g, "").trim());
+  };
 
   const generate = async () => {
     if (!changes.trim()) return;
     setStatus("generating"); setErr("");
     try {
       const currentPlan = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
-      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan actual: ${JSON.stringify(currentPlan)}\n\nCambios para la nueva semana: "${changes}"\n\nDado el contexto familiar y los cambios pedidos, generá el plan semanal completo.\n\nRespondé SOLO con un objeto JSON válido con esta estructura exacta:\n{\n  "week": [ ...7 objetos de días... ],\n  "batch": [ ...preparaciones del domingo derivadas del plan... ]\n}\n\nPara "week", cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.\nPara días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.\nValores válidos para type/dt: beef,chicken,eggs,fish,mixed.\n\nPara el array "batch", identificá qué tiene sentido preparar el domingo basándote en el plan de la semana. Incluí SOLO lo que aplica a este plan específico:\n- Bases que se usan en múltiples días (tucos, caldos, salsas)\n- Sides que se repiten 2+ días (vale asar una bandeja grande)\n- Prep que ahorra tiempo en días ocupados (huevos duros si hay pastel, caldo si hay pollo)\n\nCada objeto en "batch": { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }\n\nIconos por tipo: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE\n\nSin markdown, sin texto extra.`;
-
-      const res = await fetch("/api/generate-plan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt })
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "API error");
-      const text = data.content?.[0]?.text || "";
-      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
-      setPreview(parsed);
+      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan actual: ${JSON.stringify(currentPlan)}\n\nCambios para la nueva semana: "${changes}"\n\nDado el contexto familiar y los cambios pedidos, generá el plan semanal completo.\n\n${JSON_INSTRUCTIONS}`;
+      setPreview(await callApi(prompt));
       setStatus("preview");
     } catch(e) {
       setErr("Error al generar. Verificá la conexión e intentá de nuevo."); setStatus("error");
+    }
+  };
+
+  const refine = async () => {
+    if (!followUp.trim()) return;
+    setStatus("refining"); setErr("");
+    try {
+      const previewWeek = (preview.week || preview).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
+      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan propuesto: ${JSON.stringify(previewWeek)}\n\nEl usuario revisó el plan y pide estos ajustes: "${followUp}"\n\nModificá el plan según lo pedido, manteniendo lo que no se mencionó.\n\n${JSON_INSTRUCTIONS}`;
+      setPreview(await callApi(prompt));
+      setFollowUp("");
+      setStatus("preview");
+    } catch(e) {
+      setErr("Error al refinar. Verificá la conexión e intentá de nuevo."); setStatus("error");
     }
   };
 
@@ -353,7 +370,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
       await set(ref(db, `dashboard/plans/${id}`), plan);
       await set(ref(db, "dashboard/activeWeekId"), id);
     }
-    onPublish(plan); setStatus("done"); setChanges(""); setPreview(null);
+    onPublish(plan); setStatus("done"); setChanges(""); setFollowUp(""); setPreview(null);
   };
 
   return (
@@ -364,7 +381,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
       </div>
       <textarea value={changes} onChange={e => setChanges(e.target.value)}
         placeholder="Ej: Cambiá el chop suey por aguja braseada. No hay berenjenas esta semana..."
-        disabled={status==="generating"||status==="publishing"}
+        disabled={status==="generating"||status==="publishing"||status==="refining"}
         style={{ width:"100%", minHeight:90, padding:"12px 14px", fontSize:".8125rem", color:"#1C1810", background:"#fff", border:"1px solid #E5E0D8", borderRadius:12, outline:"none", resize:"vertical", lineHeight:1.6, marginBottom:12, fontFamily:"inherit" }}
       />
       {(status==="idle"||status==="error") && (
@@ -373,12 +390,23 @@ export function NuevaView({ activePlan, shops, onPublish }) {
         </button>
       )}
       {status==="generating" && <div style={{ textAlign:"center", padding:"1.5rem", color:"#887060", fontSize:".875rem" }}>⏳ Generando plan…</div>}
+      {status==="refining" && <div style={{ textAlign:"center", padding:"1.5rem", color:"#887060", fontSize:".875rem" }}>⏳ Ajustando plan…</div>}
       {status==="preview" && (
         <>
-          <div style={{ background:"#EAF5EF", border:"1px solid #9ED4B0", borderRadius:10, padding:"10px 14px", marginBottom:"1rem", fontSize:".8rem", color:"#0A4A20" }}>✓ Plan generado — revisá y publicá.</div>
+          <div style={{ background:"#EAF5EF", border:"1px solid #9ED4B0", borderRadius:10, padding:"10px 14px", marginBottom:"1rem", fontSize:".8rem", color:"#0A4A20" }}>✓ Plan generado — revisá, ajustá o publicá.</div>
           <PlanView week={preview.week || preview} readOnly/>
-          <div style={{ display:"flex", gap:10, marginTop:"1rem" }}>
-            <button onClick={() => { setStatus("idle"); setPreview(null); }} style={{ flex:1, padding:"12px", background:"transparent", border:"1px solid #E5E0D8", borderRadius:12, color:"#887060", fontSize:".875rem", fontWeight:500, cursor:"pointer" }}>Descartar</button>
+          <div style={{ background:"#F8F5F0", border:"1px solid #E5E0D8", borderRadius:12, padding:"12px 14px", marginTop:"1rem", marginBottom:10 }}>
+            <div style={{ fontSize:".6875rem", fontWeight:700, color:"#A89878", textTransform:"uppercase", letterSpacing:".08em", marginBottom:8 }}>Ajustar plan</div>
+            <textarea value={followUp} onChange={e => setFollowUp(e.target.value)}
+              placeholder="Ej: Demasiado pollo, cambiá el miércoles por huevos. El viernes hacé aguja en vez de milanesa."
+              style={{ width:"100%", minHeight:60, padding:"10px 12px", fontSize:".8125rem", color:"#1C1810", background:"#fff", border:"1px solid #E5E0D8", borderRadius:10, outline:"none", resize:"vertical", lineHeight:1.6, marginBottom:8, fontFamily:"inherit" }}
+            />
+            <button onClick={refine} disabled={!followUp.trim()} style={{ width:"100%", padding:"11px", background:followUp.trim()?"#C8883A":"#E0D8CC", border:"none", borderRadius:10, color:followUp.trim()?"#fff":"#A89878", fontSize:".875rem", fontWeight:600, cursor:followUp.trim()?"pointer":"default" }}>
+              Refinar con Claude
+            </button>
+          </div>
+          <div style={{ display:"flex", gap:10, marginTop:10 }}>
+            <button onClick={() => { setStatus("idle"); setPreview(null); setFollowUp(""); }} style={{ flex:1, padding:"12px", background:"transparent", border:"1px solid #E5E0D8", borderRadius:12, color:"#887060", fontSize:".875rem", fontWeight:500, cursor:"pointer" }}>Descartar</button>
             <button onClick={publish} style={{ flex:2, padding:"12px", background:"#2A7A4F", border:"none", borderRadius:12, color:"#fff", fontSize:".9375rem", fontWeight:600, cursor:"pointer" }}>Publicar semana activa →</button>
           </div>
         </>
