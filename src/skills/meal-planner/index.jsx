@@ -316,6 +316,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
   const [followUp, setFollowUp] = useState("");
   const [status, setStatus] = useState("idle");
   const [preview, setPreview] = useState(null);
+  const [previewTab, setPreviewTab] = useState("plan");
   const [err, setErr] = useState("");
 
   const JSON_INSTRUCTIONS = `Respondé SOLO con un objeto JSON válido con esta estructura exacta:\n{\n  "week": [ ...7 objetos de días... ],\n  "batch": [ ...preparaciones del domingo derivadas del plan... ]\n}\n\nPara "week", cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.\nPara días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.\nValores válidos para type/dt: beef,chicken,eggs,fish,mixed.\n\nPara el array "batch", identificá qué tiene sentido preparar el domingo basándote en el plan de la semana. Incluí SOLO lo que aplica a este plan específico:\n- Bases que se usan en múltiples días (tucos, caldos, salsas)\n- Sides que se repiten 2+ días (vale asar una bandeja grande)\n- Prep que ahorra tiempo en días ocupados (huevos duros si hay pastel, caldo si hay pollo)\n\nCada objeto en "batch": { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }\n\nIconos por tipo: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE\n\nSin markdown, sin texto extra.`;
@@ -394,7 +395,17 @@ export function NuevaView({ activePlan, shops, onPublish }) {
       {status==="preview" && (
         <>
           <div style={{ background:"#EAF5EF", border:"1px solid #9ED4B0", borderRadius:10, padding:"10px 14px", marginBottom:"1rem", fontSize:".8rem", color:"#0A4A20" }}>✓ Plan generado — revisá, ajustá o publicá.</div>
-          <PlanView week={preview.week || preview} readOnly/>
+          {/* Preview tabs */}
+          <div style={{ display:"flex", gap:6, marginBottom:"1rem" }}>
+            {[{id:"plan",label:"🥗 Plan"},{id:"batch",label:"🔄 Batch"},{id:"lista",label:"✅ Lista"}].map(t => (
+              <button key={t.id} onClick={() => setPreviewTab(t.id)} style={{ flex:1, padding:"9px 0", borderRadius:10, border:previewTab===t.id?"1.5px solid #C8883A":"1px solid #E5E0D8", background:previewTab===t.id?"#FFF8EC":"#fff", color:previewTab===t.id?"#C8883A":"#887060", fontSize:".8125rem", fontWeight:600, cursor:"pointer" }}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+          {previewTab==="plan" && <PlanView week={preview.week || preview} readOnly/>}
+          {previewTab==="batch" && <BatchView batchItems={preview.batch || []} batchChecked={{}} toggle={() => {}}/>}
+          {previewTab==="lista" && <ListaView shops={shops || DEFAULT_SHOPS} shopChecked={{}} toggle={() => {}} clear={() => {}} total={0} checked={0}/>}
           <div style={{ background:"#F8F5F0", border:"1px solid #E5E0D8", borderRadius:12, padding:"12px 14px", marginTop:"1rem", marginBottom:10 }}>
             <div style={{ fontSize:".6875rem", fontWeight:700, color:"#A89878", textTransform:"uppercase", letterSpacing:".08em", marginBottom:8 }}>Ajustar plan</div>
             <textarea value={followUp} onChange={e => setFollowUp(e.target.value)}
@@ -406,7 +417,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
             </button>
           </div>
           <div style={{ display:"flex", gap:10, marginTop:10 }}>
-            <button onClick={() => { setStatus("idle"); setPreview(null); setFollowUp(""); }} style={{ flex:1, padding:"12px", background:"transparent", border:"1px solid #E5E0D8", borderRadius:12, color:"#887060", fontSize:".875rem", fontWeight:500, cursor:"pointer" }}>Descartar</button>
+            <button onClick={() => { setStatus("idle"); setPreview(null); setFollowUp(""); setPreviewTab("plan"); }} style={{ flex:1, padding:"12px", background:"transparent", border:"1px solid #E5E0D8", borderRadius:12, color:"#887060", fontSize:".875rem", fontWeight:500, cursor:"pointer" }}>Descartar</button>
             <button onClick={publish} style={{ flex:2, padding:"12px", background:"#2A7A4F", border:"none", borderRadius:12, color:"#fff", fontSize:".9375rem", fontWeight:600, cursor:"pointer" }}>Publicar semana activa →</button>
           </div>
         </>
