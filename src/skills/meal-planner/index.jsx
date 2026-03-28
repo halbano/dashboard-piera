@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db, ref, onValue, set, get, FB_READY } from "../../lib/firebase";
-import { DEFAULT_WEEK, DEFAULT_SHOPS, BATCH_ITEMS, PLAN_SYSTEM_CONTEXT } from "./data";
+import { DEFAULT_WEEK, DEFAULT_SHOPS, PLAN_SYSTEM_CONTEXT } from "./data";
 
 // ── Styles ───────────────────────────────────────────────────────
 const S = {
@@ -205,35 +205,52 @@ export function ListaView({ shops, shopChecked, toggle, clear, total, checked })
   );
 }
 
-export function BatchView({ batchChecked, toggle }) {
+export function BatchView({ batchItems, batchChecked, toggle }) {
+  if (!batchItems || batchItems.length === 0) {
+    return (
+      <div style={{ textAlign:"center", padding:"3rem 1rem" }}>
+        <div style={{ fontSize:"2rem", marginBottom:12 }}>🔄</div>
+        <div style={{ fontSize:".875rem", color:"#887060", lineHeight:1.6 }}>
+          El batch de esta semana se genera junto con el plan.<br/>
+          Usá <strong>✨ Nueva</strong> para generar uno.
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       <div style={{ background:"#FFF8EC", border:"1px solid #E8D090", borderRadius:12, padding:"13px 16px", marginBottom:"1.25rem" }}>
-        <div style={{ fontSize:".75rem", fontWeight:700, color:"#C8883A", marginBottom:6 }}>Prep del domingo · ~45 min totales</div>
-        <div style={{ fontSize:".8125rem", color:"#6B5000", lineHeight:1.6 }}>El tuco es el núcleo — hacelo una vez, cubre la lasagna del martes y los fideos del martes noche.</div>
+        <div style={{ fontSize:".75rem", fontWeight:700, color:"#C8883A", marginBottom:6 }}>Prep del domingo</div>
+        <div style={{ fontSize:".8125rem", color:"#6B5000", lineHeight:1.6 }}>Preparaciones derivadas del plan de esta semana.</div>
       </div>
-      {BATCH_ITEMS.map(b => {
+      {batchItems.map(b => {
         const on = !!batchChecked[b.id];
+        const c = b.color || b.c || "#C8883A";
+        const bg = b.bg || "#FFF8EC";
         return (
           <div key={b.id} style={{ background:on?"#FAFAF8":"#fff", border:"1px solid #E5E0D8", borderRadius:14, overflow:"hidden", marginBottom:10 }}>
             <div onClick={() => toggle(b.id, !on)} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 16px", cursor:"pointer", userSelect:"none" }}>
-              <div style={{ width:38, height:38, borderRadius:10, background:on?"#F0EBE2":b.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.25rem", flexShrink:0 }}>{on?"✓":b.icon}</div>
+              <div style={{ width:38, height:38, borderRadius:10, background:on?"#F0EBE2":bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.25rem", flexShrink:0 }}>{on?"✓":b.icon}</div>
               <div style={{ flex:1 }}>
                 <div style={{ fontSize:".9375rem", fontWeight:600, color:on?"#B0A090":"#1C1810", textDecoration:on?"line-through":"none" }}>{b.title}</div>
                 <div style={{ fontSize:".75rem", color:on?"#C0B8A8":"#A89878", marginTop:1 }}>{b.when}</div>
               </div>
-              <CB on={on} c={b.c}/>
+              <CB on={on} c={c}/>
             </div>
             {!on && (
               <div style={{ padding:"0 16px 14px" }}>
+                {b.reason && (
+                  <div style={{ fontSize:".75rem", color:"#C8883A", fontWeight:500, marginBottom:8 }}>💡 {b.reason}</div>
+                )}
                 {b.steps.map((s, i) => (
                   <div key={i} style={{ display:"flex", gap:8, alignItems:"flex-start", marginBottom:5 }}>
-                    <div style={{ width:18, height:18, borderRadius:"50%", background:b.bg, color:b.c, display:"flex", alignItems:"center", justifyContent:"center", fontSize:".6rem", fontWeight:700, flexShrink:0, marginTop:1 }}>{i+1}</div>
+                    <div style={{ width:18, height:18, borderRadius:"50%", background:bg, color:c, display:"flex", alignItems:"center", justifyContent:"center", fontSize:".6rem", fontWeight:700, flexShrink:0, marginTop:1 }}>{i+1}</div>
                     <span style={{ fontSize:".8125rem", color:"#555040", lineHeight:1.5 }}>{s}</span>
                   </div>
                 ))}
                 <div style={{ background:"#F5F2ED", borderRadius:8, padding:"8px 12px", fontSize:".8125rem", color:"#6B5A40", lineHeight:1.5, marginTop:8, marginBottom:6 }}>
-                  <strong style={{ color:b.c }}>Desbloquea: </strong>{b.saves}
+                  <strong style={{ color:c }}>Desbloquea: </strong>{b.saves}
                 </div>
                 <div style={{ fontSize:".75rem", color:"#A89878" }}>🧊 {b.storage}</div>
               </div>
@@ -296,7 +313,7 @@ export function HistorialView({ allPlanIds, activePlanId }) {
   );
 }
 
-export function NuevaView({ activePlan, onPublish }) {
+export function NuevaView({ activePlan, shops, onPublish }) {
   const [changes, setChanges] = useState("");
   const [status, setStatus] = useState("idle");
   const [preview, setPreview] = useState(null);
@@ -307,16 +324,17 @@ export function NuevaView({ activePlan, onPublish }) {
     setStatus("generating"); setErr("");
     try {
       const currentPlan = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
-      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan actual: ${JSON.stringify(currentPlan)}\n\nCambios para la nueva semana: "${changes}"\n\nRespondé SOLO con un array JSON de 7 objetos. Campos obligatorios para días libres: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt. Para días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote. Valores válidos para type/dt: beef,chicken,eggs,fish,mixed. Sin markdown, sin texto extra.`;
+      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan actual: ${JSON.stringify(currentPlan)}\n\nCambios para la nueva semana: "${changes}"\n\nDado el contexto familiar y los cambios pedidos, generá el plan semanal completo.\n\nRespondé SOLO con un objeto JSON válido con esta estructura exacta:\n{\n  "week": [ ...7 objetos de días... ],\n  "batch": [ ...preparaciones del domingo derivadas del plan... ]\n}\n\nPara "week", cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.\nPara días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.\nValores válidos para type/dt: beef,chicken,eggs,fish,mixed.\n\nPara el array "batch", identificá qué tiene sentido preparar el domingo basándote en el plan de la semana. Incluí SOLO lo que aplica a este plan específico:\n- Bases que se usan en múltiples días (tucos, caldos, salsas)\n- Sides que se repiten 2+ días (vale asar una bandeja grande)\n- Prep que ahorra tiempo en días ocupados (huevos duros si hay pastel, caldo si hay pollo)\n\nCada objeto en "batch": { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }\n\nIconos por tipo: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE\n\nSin markdown, sin texto extra.`;
 
       const res = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 2000, messages: [{ role:"user", content: prompt }] })
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, messages: [{ role:"user", content: prompt }] })
       });
       const data = await res.json();
       const text = data.content?.[0]?.text || "";
-      setPreview(JSON.parse(text.replace(/```json|```/g, "").trim()));
+      const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
+      setPreview(parsed);
       setStatus("preview");
     } catch(e) {
       setErr("Error al generar. Verificá la conexión e intentá de nuevo."); setStatus("error");
@@ -327,7 +345,9 @@ export function NuevaView({ activePlan, onPublish }) {
     setStatus("publishing");
     const id = new Date().toISOString().split("T")[0];
     const label = `Semana ${new Date().toLocaleDateString("es-UY", { day:"numeric", month:"long", year:"numeric" })}`;
-    const plan = { id, label, week:preview, shops:activePlan?.shops||DEFAULT_SHOPS, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
+    const week = preview.week || preview;
+    const batch = preview.batch || [];
+    const plan = { id, label, week, batch, shops:shops||DEFAULT_SHOPS, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
     if (db) {
       await set(ref(db, `dashboard/plans/${id}`), plan);
       await set(ref(db, "dashboard/activeWeekId"), id);
@@ -355,7 +375,7 @@ export function NuevaView({ activePlan, onPublish }) {
       {status==="preview" && (
         <>
           <div style={{ background:"#EAF5EF", border:"1px solid #9ED4B0", borderRadius:10, padding:"10px 14px", marginBottom:"1rem", fontSize:".8rem", color:"#0A4A20" }}>✓ Plan generado — revisá y publicá.</div>
-          <PlanView week={preview} readOnly/>
+          <PlanView week={preview.week || preview} readOnly/>
           <div style={{ display:"flex", gap:10, marginTop:"1rem" }}>
             <button onClick={() => { setStatus("idle"); setPreview(null); }} style={{ flex:1, padding:"12px", background:"transparent", border:"1px solid #E5E0D8", borderRadius:12, color:"#887060", fontSize:".875rem", fontWeight:500, cursor:"pointer" }}>Descartar</button>
             <button onClick={publish} style={{ flex:2, padding:"12px", background:"#2A7A4F", border:"none", borderRadius:12, color:"#fff", fontSize:".9375rem", fontWeight:600, cursor:"pointer" }}>Publicar semana activa →</button>

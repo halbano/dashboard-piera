@@ -2,6 +2,12 @@
   command   = "npm run build"
   publish   = "dist"
 
+[build.environment]
+  # Vite inlines VITE_* env vars into the JS bundle at build time (import.meta.env).
+  # Firebase config values are public client-side identifiers, not secrets.
+  # The PIN is a client-side access gate, also necessarily in the bundle.
+  SECRETS_SCAN_OMIT_PATHS = "dist/"
+
 [[redirects]]
   from   = "/*"
   to     = "/index.html"

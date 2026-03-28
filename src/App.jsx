@@ -29,6 +29,7 @@ function Dashboard() {
   const [subTab, setSubTab] = useState("semana");
   const [activePlan, setActivePlan] = useState(null);
   const [allPlanIds, setAllPlanIds] = useState([]);
+  const [fbShops, setFbShops] = useState(null);
   const [fbStatus, setFbStatus] = useState(FB_READY ? "connecting" : "local");
   const unsubRef = useRef(null);
 
@@ -38,6 +39,17 @@ function Dashboard() {
       setActivePlan({ id:"local", label:"Plan base", week:DEFAULT_WEEK, shops:DEFAULT_SHOPS, shopChecked:{}, batchChecked:{} });
       return;
     }
+
+    // Seed and subscribe to shops config
+    const shopsRef = ref(db, "dashboard/config/shops");
+    get(shopsRef).then((snap) => {
+      if (!snap.exists()) {
+        set(shopsRef, DEFAULT_SHOPS);
+      }
+    });
+    const unsubShops = onValue(shopsRef, (snap) => {
+      if (snap.exists()) setFbShops(snap.val());
+    });
 
     // Watch active plan ID
     const activeIdRef = ref(db, "dashboard/activeWeekId");
@@ -71,6 +83,7 @@ function Dashboard() {
     });
 
     return () => {
+      unsubShops();
       unsubActive();
       unsubPlans();
       if (unsubRef.current) unsubRef.current();
@@ -92,7 +105,7 @@ function Dashboard() {
     if (db && activePlan?.id !== "local") await set(ref(db, `dashboard/plans/${activePlan.id}/batchChecked/${id}`), val);
   }, [activePlan]);
 
-  const shops      = activePlan?.shops || DEFAULT_SHOPS;
+  const shops      = fbShops || activePlan?.shops || DEFAULT_SHOPS;
   const shopChecked  = activePlan?.shopChecked  || {};
   const batchChecked = activePlan?.batchChecked || {};
   const totalItems   = shops.reduce((a, s) => a + s.items.length, 0);
@@ -132,9 +145,9 @@ function Dashboard() {
         {!activePlan && <div style={{ textAlign:"center", padding:"3rem", color:"#887060", fontSize:".875rem" }}>Cargando…</div>}
         {activePlan && nav === "plan"  && <PlanView week={activePlan.week}/>}
         {activePlan && nav === "lista" && <ListaView shops={shops} shopChecked={shopChecked} toggle={updateShop} clear={clearShop} total={totalItems} checked={totalChecked}/>}
-        {activePlan && nav === "batch" && <BatchView batchChecked={batchChecked} toggle={updateBatch}/>}
+        {activePlan && nav === "batch" && <BatchView batchItems={activePlan.batch} batchChecked={batchChecked} toggle={updateBatch}/>}
         {nav === "hist"  && <HistorialView allPlanIds={allPlanIds} activePlanId={activePlan?.id}/>}
-        {nav === "nueva" && <NuevaView activePlan={activePlan} onPublish={p => { setActivePlan(p); setNav("plan"); }}/>}
+        {nav === "nueva" && <NuevaView activePlan={activePlan} shops={shops} onPublish={p => { setActivePlan(p); setNav("plan"); }}/>}
         {nav === "costos" && <FoodCosts/>}
       </div>
 
