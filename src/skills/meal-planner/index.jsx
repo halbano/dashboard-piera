@@ -326,12 +326,13 @@ export function NuevaView({ activePlan, shops, onPublish }) {
       const currentPlan = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
       const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan actual: ${JSON.stringify(currentPlan)}\n\nCambios para la nueva semana: "${changes}"\n\nDado el contexto familiar y los cambios pedidos, generá el plan semanal completo.\n\nRespondé SOLO con un objeto JSON válido con esta estructura exacta:\n{\n  "week": [ ...7 objetos de días... ],\n  "batch": [ ...preparaciones del domingo derivadas del plan... ]\n}\n\nPara "week", cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.\nPara días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.\nValores válidos para type/dt: beef,chicken,eggs,fish,mixed.\n\nPara el array "batch", identificá qué tiene sentido preparar el domingo basándote en el plan de la semana. Incluí SOLO lo que aplica a este plan específico:\n- Bases que se usan en múltiples días (tucos, caldos, salsas)\n- Sides que se repiten 2+ días (vale asar una bandeja grande)\n- Prep que ahorra tiempo en días ocupados (huevos duros si hay pastel, caldo si hay pollo)\n\nCada objeto en "batch": { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }\n\nIconos por tipo: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE\n\nSin markdown, sin texto extra.`;
 
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/generate-plan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 3000, messages: [{ role:"user", content: prompt }] })
+        body: JSON.stringify({ prompt })
       });
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "API error");
       const text = data.content?.[0]?.text || "";
       const parsed = JSON.parse(text.replace(/```json|```/g, "").trim());
       setPreview(parsed);
