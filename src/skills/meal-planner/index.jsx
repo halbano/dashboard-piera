@@ -317,7 +317,14 @@ export function NuevaView({ activePlan, shops, onPublish }) {
   const [status, setStatus] = useState("idle");
   const [preview, setPreview] = useState(null);
   const [previewTab, setPreviewTab] = useState("plan");
+  const [streamText, setStreamText] = useState("");
   const [err, setErr] = useState("");
+  const streamRef = useRef(null);
+
+  // Auto-scroll stream container
+  useEffect(() => {
+    if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
+  }, [streamText]);
 
   const JSON_INSTRUCTIONS = `Respondé SOLO con un objeto JSON válido con esta estructura exacta:
 {
@@ -362,15 +369,44 @@ Evitá repetir los mismos platos de la semana anterior. Variá las proteínas, l
 Sin markdown, sin texto extra.`;
 
   const callApi = async (prompt) => {
+    setStreamText("");
     const res = await fetch("/api/generate-plan", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt })
     });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "API error");
-    const text = data.content?.[0]?.text || "";
-    return JSON.parse(text.replace(/```json|```/g, "").trim());
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let accumulated = "";
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop();
+
+      for (const part of parts) {
+        if (!part.startsWith("data: ")) continue;
+        const raw = part.slice(6);
+        if (raw === "[DONE]") continue;
+        try {
+          const evt = JSON.parse(raw);
+          if (evt.error) throw new Error(evt.error);
+          if (evt.t) {
+            accumulated += evt.t;
+            setStreamText(accumulated);
+          }
+        } catch (e) {
+          if (e.message && e.message !== "Unexpected end of JSON input") throw e;
+        }
+      }
+    }
+
+    return JSON.parse(accumulated.replace(/```json|```/g, "").trim());
   };
 
   const generate = async () => {
@@ -431,8 +467,22 @@ Sin markdown, sin texto extra.`;
           Generar plan con Claude
         </button>
       )}
-      {status==="generating" && <div style={{ textAlign:"center", padding:"1.5rem", color:"#887060", fontSize:".875rem" }}>⏳ Generando plan…</div>}
-      {status==="refining" && <div style={{ textAlign:"center", padding:"1.5rem", color:"#887060", fontSize:".875rem" }}>⏳ Ajustando plan…</div>}
+      {(status==="generating"||status==="refining") && (
+        <div style={{ marginBottom:"1rem" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+            <div style={{ width:8, height:8, borderRadius:"50%", background:"#C8883A", animation:"pulse 1s infinite" }}/>
+            <span style={{ fontSize:".8125rem", fontWeight:600, color:"#C8883A" }}>
+              {status==="generating"?"Generando plan…":"Ajustando plan…"}
+            </span>
+          </div>
+          {streamText && (
+            <div ref={streamRef} style={{ background:"#1C1810", borderRadius:12, padding:"14px 16px", maxHeight:300, overflowY:"auto", fontSize:".75rem", fontFamily:"'SF Mono', SFMono-Regular, Consolas, monospace", color:"#A0D8A0", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+              {streamText}
+            </div>
+          )}
+          <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>
+        </div>
+      )}
       {status==="preview" && (
         <>
           <div style={{ background:"#EAF5EF", border:"1px solid #9ED4B0", borderRadius:10, padding:"10px 14px", marginBottom:"1rem", fontSize:".8rem", color:"#0A4A20" }}>✓ Plan generado — revisá, ajustá o publicá.</div>
