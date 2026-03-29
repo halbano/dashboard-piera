@@ -319,7 +319,47 @@ export function NuevaView({ activePlan, shops, onPublish }) {
   const [previewTab, setPreviewTab] = useState("plan");
   const [err, setErr] = useState("");
 
-  const JSON_INSTRUCTIONS = `Respondé SOLO con un objeto JSON válido con esta estructura exacta:\n{\n  "week": [ ...7 objetos de días... ],\n  "batch": [ ...preparaciones del domingo derivadas del plan... ]\n}\n\nPara "week", cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.\nPara días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.\nValores válidos para type/dt: beef,chicken,eggs,fish,mixed.\n\nPara el array "batch", identificá qué tiene sentido preparar el domingo basándote en el plan de la semana. Incluí SOLO lo que aplica a este plan específico:\n- Bases que se usan en múltiples días (tucos, caldos, salsas)\n- Sides que se repiten 2+ días (vale asar una bandeja grande)\n- Prep que ahorra tiempo en días ocupados (huevos duros si hay pastel, caldo si hay pollo)\n\nCada objeto en "batch": { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }\n\nIconos por tipo: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE\n\nSin markdown, sin texto extra.`;
+  const JSON_INSTRUCTIONS = `Respondé SOLO con un objeto JSON válido con esta estructura exacta:
+{
+  "week": [ ...7 objetos de días... ],
+  "batch": [ ...preparaciones del domingo derivadas del plan... ],
+  "shops": [ ...lista de compras por proveedor derivada del plan... ]
+}
+
+WEEK
+Cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.
+Para días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.
+Valores válidos para type/dt: beef,chicken,eggs,fish,mixed.
+
+BATCH
+Identificá qué tiene sentido preparar el domingo basándote en el plan. Incluí SOLO lo que aplica:
+- Bases que se usan en múltiples días (tucos, caldos, salsas)
+- Sides que se repiten 2+ días (vale asar una bandeja grande)
+- Prep que ahorra tiempo (huevos duros si hay pastel, caldo si hay pollo)
+
+Cada objeto: { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }
+Iconos: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE
+
+SHOPS (lista de compras)
+Generá la lista de compras basándote en lo que el plan y el batch realmente necesitan.
+Usá exactamente estos proveedores con sus IDs y metadata (NO inventar proveedores nuevos):
+
+Proveedores fijos:
+- { id:"dc", name:"Del Campo", sub:"Av. Sarmiento 2394 · pedir sábados", c:"#7A2A10", bg:"#FDF0EB" } — carnes vacunas y pollo
+- { id:"nm", name:"Capitán Nemo", sub:"capitannemo.com.uy · delivery mismo día", c:"#0A3A6A", bg:"#E8F2FC", link:"https://www.capitannemo.com.uy/producto/salmon-chileno-1-kg/", altNote:"Alt.: Merluza $440/kg o Cazón $400/kg" } — pescado (solo si el plan tiene pescado)
+- { id:"qs", name:"El Establecimiento", sub:"Emilio Frugoni 949 · quincenal", c:"#7A5000", bg:"#FFF8EC" } — quesos
+- { id:"fe", name:"Feria", sub:"Sábado o martes · orgánicos cuando hay", c:"#0A5A28", bg:"#EAF5EF" } — verduras y frutas
+- { id:"di", name:"Disco / Géant", sub:"Reposición quincenal", c:"#1A3A7A", bg:"#EAF0FC" } — huevos, lácteos, secos
+
+Cada item dentro de un proveedor: { id:"dc1", name:"...", qty:"...", note:"precio/kg", eff:"~$costo", use:"Para qué del plan" }
+IDs: dc1,dc2.. para Del Campo, n1,n2.. Nemo, q1,q2.. Establecimiento, f1,f2.. Feria, d1,d2.. Disco.
+Incluí SOLO lo que este plan necesita. Si no hay salmón en el plan, no incluir Capitán Nemo.
+Calculá cantidades reales basadas en pax y recetas del plan.
+
+REGLA ANTI-REPETICIÓN
+Evitá repetir los mismos platos de la semana anterior. Variá las proteínas, los cortes, los sides y las preparaciones. La familia quiere sentir que cada semana es diferente.
+
+Sin markdown, sin texto extra.`;
 
   const callApi = async (prompt) => {
     const res = await fetch("/api/generate-plan", {
@@ -337,8 +377,8 @@ export function NuevaView({ activePlan, shops, onPublish }) {
     if (!changes.trim()) return;
     setStatus("generating"); setErr("");
     try {
-      const currentPlan = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
-      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan actual: ${JSON.stringify(currentPlan)}\n\nCambios para la nueva semana: "${changes}"\n\nDado el contexto familiar y los cambios pedidos, generá el plan semanal completo.\n\n${JSON_INSTRUCTIONS}`;
+      const prevWeek = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
+      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan de la SEMANA ANTERIOR (no repetir estos platos):\n${JSON.stringify(prevWeek)}\n\nCambios/pedidos para la nueva semana: "${changes}"\n\nGenerá un plan semanal DIFERENTE al anterior. Variá proteínas, cortes, sides y preparaciones.\n\n${JSON_INSTRUCTIONS}`;
       setPreview(await callApi(prompt));
       setStatus("preview");
     } catch(e) {
@@ -366,7 +406,8 @@ export function NuevaView({ activePlan, shops, onPublish }) {
     const label = `Semana ${new Date().toLocaleDateString("es-UY", { day:"numeric", month:"long", year:"numeric" })}`;
     const week = preview.week || preview;
     const batch = preview.batch || [];
-    const plan = { id, label, week, batch, shops:shops||DEFAULT_SHOPS, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
+    const newShops = preview.shops || shops || DEFAULT_SHOPS;
+    const plan = { id, label, week, batch, shops:newShops, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
     if (db) {
       await set(ref(db, `dashboard/plans/${id}`), plan);
       await set(ref(db, "dashboard/activeWeekId"), id);
@@ -405,7 +446,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
           </div>
           {previewTab==="plan" && <PlanView week={preview.week || preview} readOnly/>}
           {previewTab==="batch" && <BatchView batchItems={preview.batch || []} batchChecked={{}} toggle={() => {}}/>}
-          {previewTab==="lista" && <ListaView shops={shops || DEFAULT_SHOPS} shopChecked={{}} toggle={() => {}} clear={() => {}} total={0} checked={0}/>}
+          {previewTab==="lista" && <ListaView shops={preview.shops || shops || DEFAULT_SHOPS} shopChecked={{}} toggle={() => {}} clear={() => {}} total={0} checked={0}/>}
           <div style={{ background:"#F8F5F0", border:"1px solid #E5E0D8", borderRadius:12, padding:"12px 14px", marginTop:"1rem", marginBottom:10 }}>
             <div style={{ fontSize:".6875rem", fontWeight:700, color:"#A89878", textTransform:"uppercase", letterSpacing:".08em", marginBottom:8 }}>Ajustar plan</div>
             <textarea value={followUp} onChange={e => setFollowUp(e.target.value)}
