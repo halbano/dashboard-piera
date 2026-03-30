@@ -414,7 +414,34 @@ Sin markdown, sin texto extra.`;
     if (start === -1 || end === -1 || end <= start) {
       throw new Error("No se encontró JSON válido en la respuesta");
     }
-    return JSON.parse(clean.slice(start, end + 1));
+    let json = clean.slice(start, end + 1);
+
+    // Try parsing as-is first
+    try { return JSON.parse(json); } catch {}
+
+    // Repair common LLM JSON errors: trailing commas before ] or }
+    json = json.replace(/,\s*([}\]])/g, "$1");
+
+    // If still broken, try closing unclosed brackets/braces (truncation)
+    try { return JSON.parse(json); } catch {}
+
+    let inStr = false, esc = false, openObj = 0, openArr = 0;
+    for (const ch of json) {
+      if (esc) { esc = false; continue; }
+      if (ch === "\\") { esc = true; continue; }
+      if (ch === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (ch === "{") openObj++; else if (ch === "}") openObj--;
+      else if (ch === "[") openArr++; else if (ch === "]") openArr--;
+    }
+    // Close any unclosed strings, arrays, objects
+    if (inStr) json += '"';
+    while (openArr-- > 0) json += "]";
+    while (openObj-- > 0) json += "}";
+    // Remove trailing commas again after repair
+    json = json.replace(/,\s*([}\]])/g, "$1");
+
+    return JSON.parse(json);
   };
 
   const generate = async () => {
