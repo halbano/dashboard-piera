@@ -29,7 +29,7 @@ export default async (req) => {
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 5000,
+        max_tokens: 8192,
         stream: true,
         messages: [{ role: "user", content: prompt }],
       }),
@@ -71,6 +71,11 @@ export default async (req) => {
               if (evt.type === "content_block_delta" && evt.delta?.text) {
                 await writer.write(
                   encoder.encode(`data: ${JSON.stringify({ t: evt.delta.text })}\n\n`)
+                );
+              }
+              if (evt.type === "message_delta" && evt.delta?.stop_reason === "max_tokens") {
+                await writer.write(
+                  encoder.encode(`data: ${JSON.stringify({ error: "Respuesta truncada (max_tokens). Intentá de nuevo." })}\n\n`)
                 );
               }
             } catch {}

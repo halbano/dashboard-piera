@@ -318,6 +318,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
   const [preview, setPreview] = useState(null);
   const [previewTab, setPreviewTab] = useState("plan");
   const [streamText, setStreamText] = useState("");
+  const [streamOpen, setStreamOpen] = useState(false);
   const [err, setErr] = useState("");
   const streamRef = useRef(null);
 
@@ -406,7 +407,14 @@ Sin markdown, sin texto extra.`;
       }
     }
 
-    return JSON.parse(accumulated.replace(/```json|```/g, "").trim());
+    // Strip markdown fences, then extract the outermost JSON object
+    const clean = accumulated.replace(/```json|```/g, "").trim();
+    const start = clean.indexOf("{");
+    const end = clean.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) {
+      throw new Error("No se encontró JSON válido en la respuesta");
+    }
+    return JSON.parse(clean.slice(start, end + 1));
   };
 
   const generate = async () => {
@@ -418,7 +426,8 @@ Sin markdown, sin texto extra.`;
       setPreview(await callApi(prompt));
       setStatus("preview");
     } catch(e) {
-      setErr("Error al generar. Verificá la conexión e intentá de nuevo."); setStatus("error");
+      console.error("generate error:", e);
+      setErr(`Error al generar: ${e.message}`); setStatus("error");
     }
   };
 
@@ -432,7 +441,8 @@ Sin markdown, sin texto extra.`;
       setFollowUp("");
       setStatus("preview");
     } catch(e) {
-      setErr("Error al refinar. Verificá la conexión e intentá de nuevo."); setStatus("error");
+      console.error("refine error:", e);
+      setErr(`Error al refinar: ${e.message}`); setStatus("error");
     }
   };
 
@@ -476,8 +486,19 @@ Sin markdown, sin texto extra.`;
             </span>
           </div>
           {streamText && (
-            <div ref={streamRef} style={{ background:"#1C1810", borderRadius:12, padding:"14px 16px", maxHeight:300, overflowY:"auto", fontSize:".75rem", fontFamily:"'SF Mono', SFMono-Regular, Consolas, monospace", color:"#A0D8A0", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
-              {streamText}
+            <div style={{ borderRadius:12, border:"1px solid #E5E0D8", overflow:"hidden" }}>
+              <button
+                onClick={() => setStreamOpen(o => !o)}
+                style={{ width:"100%", display:"flex", alignItems:"center", justifyContent:"space-between", padding:"10px 14px", background:"#FAF7F2", border:"none", cursor:"pointer", fontSize:".8rem", color:"#887060", fontWeight:600 }}
+              >
+                <span>Pensando… ({Math.round(streamText.length/4)} tokens)</span>
+                <span style={{ transform:streamOpen?"rotate(180deg)":"rotate(0)", transition:"transform .2s", fontSize:".7rem" }}>▼</span>
+              </button>
+              {streamOpen && (
+                <div ref={streamRef} style={{ background:"#1C1810", padding:"14px 16px", maxHeight:300, overflowY:"auto", fontSize:".75rem", fontFamily:"'SF Mono', SFMono-Regular, Consolas, monospace", color:"#A0D8A0", lineHeight:1.6, whiteSpace:"pre-wrap", wordBreak:"break-word" }}>
+                  {streamText}
+                </div>
+              )}
             </div>
           )}
           <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}`}</style>

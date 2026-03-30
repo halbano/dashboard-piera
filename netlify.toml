@@ -8,6 +8,12 @@
   # The PIN is a client-side access gate, also necessarily in the bundle.
   SECRETS_SCAN_OMIT_PATHS = "dist/"
 
+[functions]
+  node_bundler = "esbuild"
+
+[functions."generate-plan"]
+  timeout = 60
+
 [[redirects]]
   from   = "/*"
   to     = "/index.html"
