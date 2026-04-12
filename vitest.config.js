@@ -5,8 +5,8 @@ export default defineConfig({
   plugins: [react()],
   test: {
     globals: true,
+    exclude: ["node_modules", ".netlify"],
     environmentMatchGlobs: [
-      // Component tests use jsdom; pure logic tests use default (node)
       ["src/**/*.component.test.*", "jsdom"],
     ],
   },

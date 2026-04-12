@@ -64,7 +64,7 @@ describe("generate-plan serverless function", () => {
 
   it("returns 405 for non-POST requests", async () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({}, "GET"));
     expect(res.status).toBe(405);
@@ -72,7 +72,7 @@ describe("generate-plan serverless function", () => {
 
   it("returns error when API key is missing", async () => {
     delete process.env.ANTHROPIC_API_KEY;
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({ prompt: "test" }));
     const text = await res.text();
@@ -81,7 +81,7 @@ describe("generate-plan serverless function", () => {
 
   it("returns error when prompt is missing", async () => {
     process.env.ANTHROPIC_API_KEY = "test-key";
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({}));
     const text = await res.text();
@@ -90,7 +90,7 @@ describe("generate-plan serverless function", () => {
 
   it("streams mock plan when MOCK_PLAN=true", async () => {
     process.env.MOCK_PLAN = "true";
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({ prompt: "test" }));
     expect(res.headers.get("Content-Type")).toBe("text/event-stream");
@@ -112,7 +112,7 @@ describe("generate-plan serverless function", () => {
       ok: true,
       body: fakeAnthropicStream([planJson]),
     }));
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({ prompt: "test" }));
     const events = await collectSSE(res);
@@ -126,7 +126,7 @@ describe("generate-plan serverless function", () => {
       ok: true,
       body: fakeAnthropicStream(['{"partial":'], "max_tokens"),
     }));
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({ prompt: "test" }));
     const events = await collectSSE(res);
@@ -142,7 +142,7 @@ describe("generate-plan serverless function", () => {
       status: 429,
       text: async () => JSON.stringify({ error: { message: "Rate limited" } }),
     }));
-    const mod = await import("./generate-plan.js");
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({ prompt: "test" }));
     const text = await res.text();
