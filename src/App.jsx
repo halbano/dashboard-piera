@@ -6,6 +6,7 @@ import {
   HistorialView, NuevaView,
 } from "./skills/meal-planner/index";
 import { DEFAULT_WEEK, DEFAULT_SHOPS, DEFAULT_BATCH } from "./skills/meal-planner/data";
+import { addItem, removeItem } from "./skills/meal-planner/shop-items";
 import FoodCosts from "./skills/food-costs/index";
 
 export default function App() {
@@ -71,7 +72,6 @@ function MealPlannerSection({ onBack }) {
   const [nav, setNav] = useState("plan");
   const [activePlan, setActivePlan] = useState(null);
   const [allPlanIds, setAllPlanIds] = useState([]);
-  const [fbShops, setFbShops] = useState(null);
   const [fbStatus, setFbStatus] = useState(FB_READY ? "connecting" : "local");
   const unsubRef = useRef(null);
   const planRef = useRef(null);
@@ -84,14 +84,6 @@ function MealPlannerSection({ onBack }) {
       setActivePlan({ id:"local", label:"Plan base", week:DEFAULT_WEEK, shops:DEFAULT_SHOPS, shopChecked:{}, batchChecked:{} });
       return;
     }
-
-    const shopsRef = ref(db, "dashboard/config/shops");
-    get(shopsRef).then((snap) => {
-      if (!snap.exists()) set(shopsRef, DEFAULT_SHOPS);
-    });
-    const unsubShops = onValue(shopsRef, (snap) => {
-      if (snap.exists()) setFbShops(snap.val());
-    });
 
     const activeIdRef = ref(db, "dashboard/activeWeekId");
     const unsubActive = onValue(activeIdRef, async (snap) => {
@@ -132,7 +124,6 @@ function MealPlannerSection({ onBack }) {
     });
 
     return () => {
-      unsubShops();
       unsubActive();
       unsubPlans();
       if (unsubRef.current) unsubRef.current();
@@ -151,13 +142,29 @@ function MealPlannerSection({ onBack }) {
     if (db && p?.id && p.id !== "local") await set(ref(db, `dashboard/plans/${p.id}/shopChecked`), {});
   }, []);
 
+  const addShopItem = useCallback(async (shopId, item) => {
+    setActivePlan(prev => ({ ...prev, shops: addItem(prev.shops || DEFAULT_SHOPS, shopId, item) }));
+    const p = planRef.current;
+    if (db && p?.id && p.id !== "local") {
+      await set(ref(db, `dashboard/plans/${p.id}/shops`), addItem(p.shops || DEFAULT_SHOPS, shopId, item));
+    }
+  }, []);
+
+  const removeShopItem = useCallback(async (shopId, itemId) => {
+    setActivePlan(prev => ({ ...prev, shops: removeItem(prev.shops || DEFAULT_SHOPS, shopId, itemId) }));
+    const p = planRef.current;
+    if (db && p?.id && p.id !== "local") {
+      await set(ref(db, `dashboard/plans/${p.id}/shops`), removeItem(p.shops || DEFAULT_SHOPS, shopId, itemId));
+    }
+  }, []);
+
   const updateBatch = useCallback(async (id, val) => {
     setActivePlan(p => ({ ...p, batchChecked: { ...(p.batchChecked||{}), [id]: val } }));
     const p = planRef.current;
     if (db && p?.id && p.id !== "local") await set(ref(db, `dashboard/plans/${p.id}/batchChecked/${id}`), val);
   }, []);
 
-  const shops      = fbShops || activePlan?.shops || DEFAULT_SHOPS;
+  const shops      = activePlan?.shops || DEFAULT_SHOPS;
   const shopChecked  = activePlan?.shopChecked  || {};
   const batchChecked = activePlan?.batchChecked || {};
   const totalItems   = shops.reduce((a, s) => a + s.items.length, 0);
@@ -195,7 +202,7 @@ function MealPlannerSection({ onBack }) {
       <div style={{ flex:1, overflowY:"auto", padding:"1.25rem", paddingBottom:"calc(72px + env(safe-area-inset-bottom,0))" }}>
         {!activePlan && <div style={{ textAlign:"center", padding:"3rem", color:"#887060", fontSize:".875rem" }}>Cargando…</div>}
         {activePlan && <div style={{ display:nav==="plan"?"block":"none" }}><PlanView week={activePlan.week}/></div>}
-        {activePlan && <div style={{ display:nav==="lista"?"block":"none" }}><ListaView shops={shops} shopChecked={shopChecked} toggle={updateShop} clear={clearShop} total={totalItems} checked={totalChecked}/></div>}
+        {activePlan && <div style={{ display:nav==="lista"?"block":"none" }}><ListaView shops={shops} shopChecked={shopChecked} toggle={updateShop} clear={clearShop} total={totalItems} checked={totalChecked} onAddItem={addShopItem} onRemoveItem={removeShopItem}/></div>}
         {activePlan && <div style={{ display:nav==="batch"?"block":"none" }}><BatchView batchItems={activePlan.batch} batchChecked={batchChecked} toggle={updateBatch}/></div>}
         <div style={{ display:nav==="hist"?"block":"none" }}><HistorialView allPlanIds={allPlanIds} activePlanId={activePlan?.id}/></div>
         <div style={{ display:nav==="nueva"?"block":"none" }}><NuevaView activePlan={activePlan} shops={shops} onPublish={p => { setActivePlan(p); setNav("plan"); }}/></div>

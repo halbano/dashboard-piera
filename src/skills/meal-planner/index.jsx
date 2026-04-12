@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db, ref, onValue, set, get, FB_READY } from "../../lib/firebase";
 import { DEFAULT_WEEK, DEFAULT_SHOPS, PLAN_SYSTEM_CONTEXT } from "./data";
+import { readPlanStream } from "./stream-plan";
 
 // ── Styles ───────────────────────────────────────────────────────
 const S = {
@@ -153,7 +154,43 @@ export function PlanView({ week, readOnly }) {
   );
 }
 
-export function ListaView({ shops, shopChecked, toggle, clear, total, checked }) {
+function AddItemRow({ shopId, shopColor, onAdd }) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [qty, setQty] = useState("");
+
+  const submit = () => {
+    if (!name.trim()) return;
+    const id = `${shopId}_m${Date.now()}`;
+    onAdd(shopId, { id, name: name.trim(), qty: qty.trim() || "—", note: "manual", eff: "", use: "Agregado manual" });
+    setName(""); setQty(""); setOpen(false);
+  };
+
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} style={{ width:"100%", padding:"10px 14px", background:"none", border:"1px dashed #D8D0C0", borderRadius:10, cursor:"pointer", fontSize:".8rem", color:"#A89878", marginTop:6 }}>
+        + Agregar item
+      </button>
+    );
+  }
+
+  return (
+    <div style={{ marginTop:6, padding:"10px 12px", background:"#FAFAF8", border:"1px solid #E5E0D8", borderRadius:10 }}>
+      <div style={{ display:"flex", gap:8, marginBottom:8 }}>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Nombre" onKeyDown={e => e.key === "Enter" && submit()}
+          style={{ flex:1, padding:"8px 10px", fontSize:".8125rem", border:"1px solid #E5E0D8", borderRadius:8, outline:"none", fontFamily:"inherit" }}/>
+        <input value={qty} onChange={e => setQty(e.target.value)} placeholder="Cant." onKeyDown={e => e.key === "Enter" && submit()}
+          style={{ width:80, padding:"8px 10px", fontSize:".8125rem", border:"1px solid #E5E0D8", borderRadius:8, outline:"none", fontFamily:"inherit" }}/>
+      </div>
+      <div style={{ display:"flex", gap:8 }}>
+        <button onClick={submit} style={{ flex:1, padding:"8px", background:shopColor, color:"#fff", border:"none", borderRadius:8, fontSize:".8rem", fontWeight:600, cursor:"pointer" }}>Agregar</button>
+        <button onClick={() => { setOpen(false); setName(""); setQty(""); }} style={{ padding:"8px 14px", background:"none", border:"1px solid #E5E0D8", borderRadius:8, fontSize:".8rem", color:"#887060", cursor:"pointer" }}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+export function ListaView({ shops, shopChecked, toggle, clear, total, checked, onAddItem, onRemoveItem }) {
   const s = shops || DEFAULT_SHOPS;
   return (
     <>
@@ -180,21 +217,32 @@ export function ListaView({ shops, shopChecked, toggle, clear, total, checked })
             <div style={{ background:"#fff", border:"1px solid #E5E0D8", borderRadius:12, overflow:"hidden" }}>
               {shop.items.map((item, idx) => {
                 const on = !!shopChecked[item.id];
+                const isManual = item.note === "manual";
                 return (
-                  <div key={item.id} onClick={() => toggle(item.id, !on)} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 14px", borderBottom:idx<shop.items.length-1?"1px solid #F5F0E8":"none", cursor:"pointer", background:on?"#FAFAF8":"#fff", userSelect:"none" }}>
-                    <CB on={on} c={shop.c}/>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontSize:".875rem", fontWeight:500, color:on?"#B0A090":"#1C1810", textDecoration:on?"line-through":"none" }}>{item.name}</div>
-                      <div style={{ fontSize:".75rem", color:"#B8A890", marginTop:1 }}>{item.use} · {item.note}</div>
+                  <div key={item.id} style={{ display:"flex", alignItems:"center", gap:12, padding:"13px 14px", borderBottom:idx<shop.items.length-1?"1px solid #F5F0E8":"none", cursor:"pointer", background:on?"#FAFAF8":"#fff", userSelect:"none" }}>
+                    <div onClick={() => toggle(item.id, !on)} style={{ display:"flex", alignItems:"center", gap:12, flex:1, minWidth:0 }}>
+                      <CB on={on} c={shop.c}/>
+                      <div style={{ flex:1, minWidth:0 }}>
+                        <div style={{ fontSize:".875rem", fontWeight:500, color:on?"#B0A090":"#1C1810", textDecoration:on?"line-through":"none" }}>{item.name}</div>
+                        <div style={{ fontSize:".75rem", color:"#B8A890", marginTop:1 }}>{item.use}{item.note && item.note !== "manual" ? ` · ${item.note}` : ""}</div>
+                      </div>
                     </div>
-                    <div style={{ textAlign:"right", flexShrink:0 }}>
-                      <div style={{ fontSize:".8125rem", fontWeight:500, color:on?"#C0B8A8":"#4A3A28" }}>{item.qty}</div>
-                      <div style={{ fontSize:".75rem", fontWeight:500, color:on?"#C0B8A8":"#2A7A4F", marginTop:1 }}>{item.eff}</div>
+                    <div style={{ textAlign:"right", flexShrink:0, display:"flex", alignItems:"center", gap:8 }}>
+                      <div>
+                        <div style={{ fontSize:".8125rem", fontWeight:500, color:on?"#C0B8A8":"#4A3A28" }}>{item.qty}</div>
+                        {item.eff && <div style={{ fontSize:".75rem", fontWeight:500, color:on?"#C0B8A8":"#2A7A4F", marginTop:1 }}>{item.eff}</div>}
+                      </div>
+                      {isManual && onRemoveItem && (
+                        <button onClick={(e) => { e.stopPropagation(); onRemoveItem(shop.id, item.id); }}
+                          style={{ background:"none", border:"none", cursor:"pointer", fontSize:".9rem", color:"#C07060", padding:"2px 4px", lineHeight:1 }}
+                          title="Eliminar">x</button>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+            {onAddItem && <AddItemRow shopId={shop.id} shopColor={shop.c} onAdd={onAddItem}/>}
             {shop.altNote && <div style={{ fontSize:".75rem", color:"#7A6A50", marginTop:6, padding:"7px 12px", background:"#FFF8EC", borderRadius:8, border:"1px solid #E8D8B0" }}>💡 {shop.altNote}</div>}
           </div>
         );
@@ -376,72 +424,7 @@ Sin markdown, sin texto extra.`;
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prompt })
     });
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let accumulated = "";
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split("\n\n");
-      buffer = parts.pop();
-
-      for (const part of parts) {
-        if (!part.startsWith("data: ")) continue;
-        const raw = part.slice(6);
-        if (raw === "[DONE]") continue;
-        try {
-          const evt = JSON.parse(raw);
-          if (evt.error) throw new Error(evt.error);
-          if (evt.t) {
-            accumulated += evt.t;
-            setStreamText(accumulated);
-          }
-        } catch (e) {
-          if (e.message && e.message !== "Unexpected end of JSON input") throw e;
-        }
-      }
-    }
-
-    // Strip markdown fences, then extract the outermost JSON object
-    const clean = accumulated.replace(/```json|```/g, "").trim();
-    const start = clean.indexOf("{");
-    const end = clean.lastIndexOf("}");
-    if (start === -1 || end === -1 || end <= start) {
-      throw new Error("No se encontró JSON válido en la respuesta");
-    }
-    let json = clean.slice(start, end + 1);
-
-    // Try parsing as-is first
-    try { return JSON.parse(json); } catch {}
-
-    // Repair common LLM JSON errors: trailing commas before ] or }
-    json = json.replace(/,\s*([}\]])/g, "$1");
-
-    // If still broken, try closing unclosed brackets/braces (truncation)
-    try { return JSON.parse(json); } catch {}
-
-    let inStr = false, esc = false, openObj = 0, openArr = 0;
-    for (const ch of json) {
-      if (esc) { esc = false; continue; }
-      if (ch === "\\") { esc = true; continue; }
-      if (ch === '"') { inStr = !inStr; continue; }
-      if (inStr) continue;
-      if (ch === "{") openObj++; else if (ch === "}") openObj--;
-      else if (ch === "[") openArr++; else if (ch === "]") openArr--;
-    }
-    // Close any unclosed strings, arrays, objects
-    if (inStr) json += '"';
-    while (openArr-- > 0) json += "]";
-    while (openObj-- > 0) json += "}";
-    // Remove trailing commas again after repair
-    json = json.replace(/,\s*([}\]])/g, "$1");
-
-    return JSON.parse(json);
+    return readPlanStream(res.body, setStreamText);
   };
 
   const generate = async () => {
