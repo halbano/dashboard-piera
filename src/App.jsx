@@ -209,7 +209,7 @@ function MealPlannerSection({ onBack }) {
       </div>
 
       {/* Bottom nav */}
-      <div style={{ background:"#1C1810", borderTop:".5px solid #2E2820", display:"flex", flexShrink:0, paddingBottom:"env(safe-area-inset-bottom,0)" }}>
+      <div style={{ background:"#1C1810", borderTop:".5px solid #2E2820", display:"flex", flexShrink:0, paddingBottom:"max(8px, env(safe-area-inset-bottom, 8px))" }}>
         {NAVS.map(n => (
           <button key={n.id} onClick={() => setNav(n.id)} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:3, border:"none", background:"transparent", cursor:"pointer", padding:"8px 0 7px" }}>
             <span style={{ fontSize:"1.1rem", lineHeight:1 }}>{n.icon}</span>
