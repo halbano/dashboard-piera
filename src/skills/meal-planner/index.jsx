@@ -12,12 +12,13 @@ const S = {
 const TS = {
   beef:   { bg:"#FDF0EB", bo:"#F0C0A8", tx:"#7A2A10", dot:"#C44A20" },
   chicken:{ bg:"#FFFBEE", bo:"#EDD898", tx:"#7A5800", dot:"#C89000" },
+  pork:   { bg:"#FFF0F5", bo:"#E8A0B8", tx:"#7A1A40", dot:"#C83A68" },
   eggs:   { bg:"#F0F8F2", bo:"#9ED4B0", tx:"#0A5A28", dot:"#1A8A48" },
   fish:   { bg:"#E8F2FC", bo:"#90C4E8", tx:"#0A3A6A", dot:"#1A6ACC" },
   mixed:  { bg:"#F5F0F8", bo:"#C8B0E0", tx:"#4A2A7A", dot:"#7A4ACC" },
 };
-const LI = { beef:"🥩", chicken:"🍗", eggs:"🥚", fish:"🐟" };
-const DI = { eggs:"🥚", fish:"🐟", chicken:"🍗", mixed:"🧀", beef:"🥩" };
+const LI = { beef:"🥩", chicken:"🍗", pork:"🐷", eggs:"🥚", fish:"🐟" };
+const DI = { eggs:"🥚", fish:"🐟", chicken:"🍗", pork:"🐷", mixed:"🧀", beef:"🥩" };
 
 // ── Shared small components ──────────────────────────────────────
 function CB({ on, c }) {
@@ -106,7 +107,7 @@ function WeekdayCard({ d, showDin }) {
           <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:5, flexWrap:"wrap" }}>
             <div style={S.LB}>Cena · 4 pax</div>
             <span style={{ fontSize:".6875rem", padding:"1px 7px", borderRadius:20, fontWeight:600, background:ds.bg, color:ds.tx, border:`1px solid ${ds.bo}` }}>
-              {DI[d.dt]} {d.dt==="fish"?"Pescado":d.dt==="eggs"?"Huevos":d.dt==="beef"?"Vacuno":d.dt==="chicken"?"Pollo":"Mixto"}
+              {DI[d.dt]} {d.dt==="fish"?"Pescado":d.dt==="eggs"?"Huevos":d.dt==="beef"?"Vacuno":d.dt==="chicken"?"Pollo":d.dt==="pork"?"Cerdo":"Mixto"}
             </span>
             {d.dinBatch && <span style={{ fontSize:".6875rem", color:"#C8883A", fontWeight:500 }}>🔄 {d.dinBatch}</span>}
             {d.dinNote  && <span style={{ fontSize:".6875rem", color:"#1A6ACC", fontWeight:500 }}>{d.dinNote}</span>}
@@ -385,7 +386,7 @@ export function NuevaView({ activePlan, shops, onPublish }) {
 WEEK
 Cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.
 Para días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.
-Valores válidos para type/dt: beef,chicken,eggs,fish,mixed.
+Valores válidos para type/dt: beef,chicken,pork,eggs,fish,mixed.
 
 BATCH
 Identificá qué tiene sentido preparar el domingo basándote en el plan. Incluí SOLO lo que aplica:
@@ -401,7 +402,7 @@ Generá la lista de compras basándote en lo que el plan y el batch realmente ne
 Usá exactamente estos proveedores con sus IDs y metadata (NO inventar proveedores nuevos):
 
 Proveedores fijos:
-- { id:"dc", name:"Del Campo", sub:"Av. Sarmiento 2394 · pedir sábados", c:"#7A2A10", bg:"#FDF0EB" } — carnes vacunas y pollo
+- { id:"dc", name:"Del Campo", sub:"Av. Sarmiento 2394 · pedir sábados", c:"#7A2A10", bg:"#FDF0EB" } — carnes vacunas, pollo y cerdo
 - { id:"nm", name:"Capitán Nemo", sub:"capitannemo.com.uy · delivery mismo día", c:"#0A3A6A", bg:"#E8F2FC", link:"https://www.capitannemo.com.uy/producto/salmon-chileno-1-kg/", altNote:"Alt.: Merluza $440/kg o Cazón $400/kg" } — pescado (solo si el plan tiene pescado)
 - { id:"qs", name:"El Establecimiento", sub:"Emilio Frugoni 949 · quincenal", c:"#7A5000", bg:"#FFF8EC" } — quesos
 - { id:"fe", name:"Feria", sub:"Sábado o martes · orgánicos cuando hay", c:"#0A5A28", bg:"#EAF5EF" } — verduras y frutas
@@ -433,7 +434,10 @@ Sin markdown, sin texto extra.`;
     try {
       const prevWeek = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
       const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan de la SEMANA ANTERIOR (no repetir estos platos):\n${JSON.stringify(prevWeek)}\n\nCambios/pedidos para la nueva semana: "${changes}"\n\nGenerá un plan semanal DIFERENTE al anterior. Variá proteínas, cortes, sides y preparaciones.\n\n${JSON_INSTRUCTIONS}`;
-      setPreview(await callApi(prompt));
+      const result = await callApi(prompt);
+      const missing = [!result.week && "week", !result.batch && "batch", !result.shops && "shops"].filter(Boolean);
+      if (missing.length) throw new Error(`Respuesta incompleta — falta: ${missing.join(", ")}. Intentá de nuevo.`);
+      setPreview(result);
       setStatus("preview");
     } catch(e) {
       console.error("generate error:", e);
@@ -445,9 +449,12 @@ Sin markdown, sin texto extra.`;
     if (!followUp.trim()) return;
     setStatus("refining"); setErr("");
     try {
-      const previewWeek = (preview.week || preview).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
+      const previewWeek = preview.week.map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
       const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan propuesto: ${JSON.stringify(previewWeek)}\n\nEl usuario revisó el plan y pide estos ajustes: "${followUp}"\n\nModificá el plan según lo pedido, manteniendo lo que no se mencionó.\n\n${JSON_INSTRUCTIONS}`;
-      setPreview(await callApi(prompt));
+      const result = await callApi(prompt);
+      const missing = [!result.week && "week", !result.batch && "batch", !result.shops && "shops"].filter(Boolean);
+      if (missing.length) throw new Error(`Respuesta incompleta — falta: ${missing.join(", ")}. Intentá de nuevo.`);
+      setPreview(result);
       setFollowUp("");
       setStatus("preview");
     } catch(e) {
@@ -460,9 +467,7 @@ Sin markdown, sin texto extra.`;
     setStatus("publishing");
     const id = new Date().toISOString().split("T")[0];
     const label = `Semana ${new Date().toLocaleDateString("es-UY", { day:"numeric", month:"long", year:"numeric" })}`;
-    const week = preview.week || preview;
-    const batch = preview.batch || [];
-    const newShops = preview.shops || shops || DEFAULT_SHOPS;
+    const { week, batch, shops: newShops } = preview;
     const plan = { id, label, week, batch, shops:newShops, shopChecked:{}, batchChecked:{}, createdAt:Date.now() };
     if (db) {
       await set(ref(db, `dashboard/plans/${id}`), plan);
@@ -525,9 +530,9 @@ Sin markdown, sin texto extra.`;
               </button>
             ))}
           </div>
-          {previewTab==="plan" && <PlanView week={preview.week || preview} readOnly/>}
-          {previewTab==="batch" && <BatchView batchItems={preview.batch || []} batchChecked={{}} toggle={() => {}}/>}
-          {previewTab==="lista" && <ListaView shops={preview.shops || shops || DEFAULT_SHOPS} shopChecked={{}} toggle={() => {}} clear={() => {}} total={0} checked={0}/>}
+          {previewTab==="plan" && <PlanView week={preview.week} readOnly/>}
+          {previewTab==="batch" && <BatchView batchItems={preview.batch} batchChecked={{}} toggle={() => {}}/>}
+          {previewTab==="lista" && <ListaView shops={preview.shops} shopChecked={{}} toggle={() => {}} clear={() => {}} total={0} checked={0}/>}
           <div style={{ background:"#F8F5F0", border:"1px solid #E5E0D8", borderRadius:12, padding:"12px 14px", marginTop:"1rem", marginBottom:10 }}>
             <div style={{ fontSize:".6875rem", fontWeight:700, color:"#A89878", textTransform:"uppercase", letterSpacing:".08em", marginBottom:8 }}>Ajustar plan</div>
             <textarea value={followUp} onChange={e => setFollowUp(e.target.value)}

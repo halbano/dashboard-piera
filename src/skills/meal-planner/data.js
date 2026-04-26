@@ -19,7 +19,7 @@ export const DEFAULT_WEEK = [
     ld:"Pollo en tiras + fideos arroz + zanahorias + zapallitos · fuego alto",
     lq:"~1.1kg · completo en 20 min",
     din:"🐟 Salmón a la plancha", dinD:"Limón + sal + manteca · zucchini · 4 pax",
-    dt:"fish", dinNote:"cena familia · Johanna no está" },
+    dt:"fish", dinNote:"cena familia · Silvia no está" },
   { day:"Jueves",    short:"JUE", type:"beef", pax:5, helper:true,
     lunch:"Pastel de carne picada",
     ld:"Picada + pasas + huevo duro + Parmesano · puré boniato/calabaza encima",
@@ -121,61 +121,106 @@ FAMILIA
 - Domingo: libre + batch cooking basado en el plan
 
 DIETA
-Animal-based estricta: carnes, huevos, quesos, pescado, verduras. Sin cereales, legumbres ni azúcar.
-Las niñas comen lo mismo que los adultos.
+Base animal-based: carnes, huevos, quesos, pescado, verduras.
+Arroz y fideos de arroz están permitidos sin restricción (se comen ~1 vez por semana como side o base).
+Excepción cereal: hasta 1 receta por semana puede incluir otros cereales, legumbres o masas (fideos de trigo, lentejas, polenta, empanadas, pizza, etc.). Los niños comen lo mismo que los adultos.
 
 PROVEEDORES Y PRECIOS
 - Del Campo (Av. Sarmiento 2394, MVD): Suprema pollo $630/kg, Aguja $430/kg, Picada Magra $630/kg,
-  Milanesa SG Nalga $870/kg, Cuadril $790/kg, Patita Pollo $430/kg. Descuento Itaú ~15%.
+  Milanesa SG Nalga $870/kg, Cuadril $790/kg, Patita Pollo $430/kg, Cerdo (bondiola/carré/costilla). Descuento Itaú ~15%.
 - Capitán Nemo (delivery MVD): Salmón Chileno Fresco $1150/kg, Merluza $440/kg, Cazón $400/kg
 - El Establecimiento (Emilio Frugoni 949): Gouda $580/kg, Parmesano Don Nelson $780/kg, Criollitos $445/kg
-- Feria orgánica: zucchini, berenjenas, zanahorias, boniatos, papas, tomates, rúcula, zapallitos, limones
-- Disco/Géant: huevos, manteca, crema, fideos de arroz, pasas, tomate triturado, aceite oliva
+- Feria orgánica: zucchini, berenjenas, zanahorias, boniatos, papas, tomates, rúcula, zapallitos, limones, coliflor, zapallo, palta, pimientos, remolacha, puerro
+- Disco/Géant: huevos, manteca, crema, fideos de arroz, pasas, tomate triturado, aceite oliva, lentejas, arroz, fideos, polenta
 
-REPERTORIO DE ALMUERZOS
+BANCO DE IDEAS — ALMUERZOS
+Elegí de este banco, variando cada semana, y explorá nuevas ideas alineadas con las reglas generales de la dieta. Sé creativo para no aburrirnos!
+Las referencias a páginas son de libros de cocina (El gordo cocina de Mauricio Asta, Narda Lepes).
+
 Vacuno:
-  - Milanesa de Nalga (SG) + puré de papas o zapallitos
   - Aguja vacuna braseada lenta (2hs, muy tierna para la de 2.5) + boniatos
   - Albóndigas de Picada Magra con salsa de tomate + boniatos
-  - Pastel de carne picada con pasas + huevo duro + Parmesano + puré boniato/calabaza
+  - Albóndigas con puré y salsa de yogur — El gordo cocina, pág. 126
+  - Pastel de carne picada (pasas + huevo duro + Parmesano) con puré de papa, boniato, calabaza o mixto
   - Cuadril feteado a la plancha + rúcula + tomate
   - Lasagna de zucchini y berenjena con tuco de picada + Gouda + Parmesano
   - Guiso de carne con zapallitos y zanahorias
+  - Estofado de carne con puré de papas
+  - Estofado de carne con cintas de arroz — Narda, pág. 226
+  - Vacío al horno con verduras (zapallito, zapallo, boniato, zanahoria)
+  - Colita de cuadril rellena con jamón, queso y ciruela + boniatos
+  - Entraña con puré de boniatos o coliflor — Narda, pág. 234
+  - Churrasco con puré de papa + boniato
+  - Hamburguesas caseras + puré o ensalada
+  - Guiso de lentejas (papa, boniato, zanahoria, zapallo + carne) — usa la excepción cereal
+  - Guiso de peceto + osobuco (zapallo, zanahoria, papa, boniato)
+  - Carne con verduras salteadas
+  - Carne con tomate y palta
+  - Zapallitos rellenos con picada
 
 Pollo:
   - Suprema al horno + papas semi-fritas + zapallitos
+  - Suprema napolitana (queso y salsa de tomate) + puré o arroz
   - Pollo guisado lento (patita + muslos) + boniatos
   - Chop suey de pollo saltado + fideos de arroz + zanahorias
-  - Supremas rebozadas (milanesa de pollo) + ensalada
+  - Stroganoff de pollo con puré de papas
+  - Wok de pollo con fideos o arroz — El gordo cocina, pág. 133
+  - Pollo al horno relleno con boniatos, pimientos, zanahorias y cebolla
+  - Pollo a la plancha + puré de boniato
+  - Estofado de pollo con verduras
+  - Pastel de pollo / chicken pie — Narda, pág. 738
+  - Zapallitos rellenos de pollo
+  - Lasaña de pollo
 
-Huevos (almuerzo):
+Cerdo:
+  - Wok de cerdo con fideos o arroz — El gordo cocina, pág. 133
+  - Cerdo con puré de boniato
+  - Bondiola braseada con boniatos
+  - Carré de cerdo al horno con verduras
+
+Huevos / vegetariano:
   - Omelette de queso Gouda + rúcula + tomate
   - Tortilla española (huevo + papa) + ensalada
+  - Tortilla de puerro, queso y zucchini
   - Huevos a la plancha con Gouda fundido + tomate
+  - Soufflé de queso con zapallitos, zucchini y zanahoria
+  - Lasaña de verduras con boloñesa
 
-Pescado: SOLO en cenas (nunca almuerzo — es privado, Johanna no está en cenas)
+Pescado: SOLO en cenas (nunca almuerzo — Silvia no come pescado)
+  Excepción almuerzo: milanesas de merluza o cazón (SG) — solo si no hay pescado en cena esa semana.
 
-REPERTORIO DE CENAS (4 pax, más livianas)
+BANCO DE IDEAS — CENAS (4 pax, más livianas)
   - Huevos revueltos con manteca + crema + Gouda
   - Huevos fritos en manteca con sal gruesa
   - Omelette simple de queso
   - Tortilla española rápida
   - Soufflé de huevo al horno
   - 🐟 Salmón a la plancha + limón + zucchini (miércoles preferido)
+  - 🐟 Pescado al horno con puré
+  - 🐟 Pastel de pescado con papa y boniato — Narda
+  - 🐟 Croquetas de pescado al horno con boniatos
+  - Milanesa de Nalga (SG) + puré de papas o zapallitos
+  - Milanesa de pollo (SG) + ensalada
   - Pollo frío deshuesado con rúcula (sobras almuerzo)
   - Fideos de arroz con tuco (cuando hay tuco del batch)
   - Picada de quesos: Gouda + Parmesano + Criollitos (sin cocción)
   - Caldo de huesos con sal
+  - Sopa de verduras
   - Sobras del almuerzo
 
 SIDES FRECUENTES
-Boniatos al horno · papas semi-fritas · puré de papas · zapallitos salteados en manteca ·
-zucchini a la plancha · zanahorias al vapor · fideos de arroz · ensalada rúcula + tomate
+Boniatos al horno · papas semi-fritas · puré de papas · puré de boniato y zapallo ·
+zapallitos salteados en manteca · zucchini a la plancha · zanahorias al vapor ·
+coliflor al vapor o gratinada · fideos de arroz · ensalada rúcula + tomate ·
+remolacha y zanahoria · puré de palta
 
 REGLAS
-1. Nunca dos días seguidos con la misma proteína (beef/chicken/eggs/fish)
-2. Salmón SOLO en cenas, nunca almuerzo
-3. Al menos 1 día de huevos en almuerzo (económico y liviano)
-4. Dom y Sáb son libres — sugerencia, no obligación
-5. Variá los sides — no repetir el mismo dos días seguidos
-6. Sé creativo — cada semana debe sentirse diferente a la anterior`;
+1. Nunca dos días seguidos con la misma proteína (beef/chicken/pork/eggs/fish)
+2. Pescado SOLO en cenas, nunca almuerzo (Silvia no come pescado). Excepción: milanesa de merluza/cazón SG
+3. Milanesas (SG) SOLO en cenas, nunca almuerzo. Excepción: milanesa de merluza/cazón puede ir en almuerzo
+4. Al menos 1 día de huevos en almuerzo (económico y liviano)
+5. Dom y Sáb son libres — sugerencia, no obligación
+6. Variá los sides — no repetir el mismo dos días seguidos
+7. Máximo 1 receta por semana con cereales/legumbres/masas (no aplica a arroz/fideos de arroz) — marcarla como "(excepción cereal)"
+8. Incluí cerdo al menos 1 vez cada 2 semanas para variar
+9. Sé creativo — elegí del banco de ideas pero explorá nuevas combinaciones. Cada semana debe sentirse diferente`;
