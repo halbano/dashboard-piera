@@ -72,6 +72,7 @@ function MealPlannerSection({ onBack }) {
   const [nav, setNav] = useState("plan");
   const [activePlan, setActivePlan] = useState(null);
   const [allPlanIds, setAllPlanIds] = useState([]);
+  const [recentWeeks, setRecentWeeks] = useState([]);
   const [fbStatus, setFbStatus] = useState(FB_READY ? "connecting" : "local");
   const unsubRef = useRef(null);
   const planRef = useRef(null);
@@ -120,7 +121,12 @@ function MealPlannerSection({ onBack }) {
     const plansRef = ref(db, "dashboard/plans");
     const unsubPlans = onValue(plansRef, (snap) => {
       const plans = snap.val();
-      if (plans) setAllPlanIds(Object.keys(plans).sort((a, b) => b.localeCompare(a)));
+      if (plans) {
+        const ids = Object.keys(plans).sort((a, b) => b.localeCompare(a));
+        setAllPlanIds(ids);
+        // Últimas 2 semanas para la memoria anti-repetición del generador.
+        setRecentWeeks(ids.slice(0, 2).map(id => plans[id]?.week).filter(Boolean));
+      }
     });
 
     return () => {
@@ -205,7 +211,7 @@ function MealPlannerSection({ onBack }) {
         {activePlan && <div style={{ display:nav==="lista"?"block":"none" }}><ListaView shops={shops} shopChecked={shopChecked} toggle={updateShop} clear={clearShop} total={totalItems} checked={totalChecked} onAddItem={addShopItem} onRemoveItem={removeShopItem}/></div>}
         {activePlan && <div style={{ display:nav==="batch"?"block":"none" }}><BatchView batchItems={activePlan.batch} batchChecked={batchChecked} toggle={updateBatch}/></div>}
         <div style={{ display:nav==="hist"?"block":"none" }}><HistorialView allPlanIds={allPlanIds} activePlanId={activePlan?.id}/></div>
-        <div style={{ display:nav==="nueva"?"block":"none" }}><NuevaView activePlan={activePlan} shops={shops} onPublish={p => { setActivePlan(p); setNav("plan"); }}/></div>
+        <div style={{ display:nav==="nueva"?"block":"none" }}><NuevaView activePlan={activePlan} recentWeeks={recentWeeks} shops={shops} onPublish={p => { setActivePlan(p); setNav("plan"); }}/></div>
       </div>
 
       {/* Bottom nav */}

@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { db, ref, onValue, set, get, FB_READY } from "../../lib/firebase";
-import { DEFAULT_WEEK, DEFAULT_SHOPS, PLAN_SYSTEM_CONTEXT } from "./data";
+import { DEFAULT_WEEK, DEFAULT_SHOPS } from "./data";
 import { readPlanStream } from "./stream-plan";
+import { buildPlanPrompt, buildRefinePrompt } from "./build-prompt";
 
 // ── Styles ───────────────────────────────────────────────────────
 const S = {
@@ -360,7 +361,7 @@ export function HistorialView({ allPlanIds, activePlanId }) {
   );
 }
 
-export function NuevaView({ activePlan, shops, onPublish }) {
+export function NuevaView({ activePlan, recentWeeks, shops, onPublish }) {
   const [changes, setChanges] = useState("");
   const [followUp, setFollowUp] = useState("");
   const [status, setStatus] = useState("idle");
@@ -376,48 +377,6 @@ export function NuevaView({ activePlan, shops, onPublish }) {
     if (streamRef.current) streamRef.current.scrollTop = streamRef.current.scrollHeight;
   }, [streamText]);
 
-  const JSON_INSTRUCTIONS = `Respondé SOLO con un objeto JSON válido con esta estructura exacta:
-{
-  "week": [ ...7 objetos de días... ],
-  "batch": [ ...preparaciones del domingo derivadas del plan... ],
-  "shops": [ ...lista de compras por proveedor derivada del plan... ]
-}
-
-WEEK
-Cada objeto de día libre: day,short,free(true),isOrder(bool),pax,sug,sugD,din,dinD,dt.
-Para días de semana: day,short,type,pax,helper(true),lunch,ld,lq,din,dinD,dt. Opcionales: dinBatch,dinNote.
-Valores válidos para type/dt: beef,chicken,pork,eggs,fish,mixed.
-
-BATCH
-Identificá qué tiene sentido preparar el domingo basándote en el plan. Incluí SOLO lo que aplica:
-- Bases que se usan en múltiples días (tucos, caldos, salsas)
-- Sides que se repiten 2+ días (vale asar una bandeja grande)
-- Prep que ahorra tiempo (huevos duros si hay pastel, caldo si hay pollo)
-
-Cada objeto: { "id": "b1", "title": "...", "icon": "...", "when": "...", "reason": "...", "steps": ["..."], "saves": "...", "storage": "...", "color": "#...", "bg": "#..." }
-Iconos: Tuco/salsa 🍅 #C8401A/#FDF0EB · Papas/boniatos 🥔 #C89000/#FFFBEE · Huevos duros 🥚 #0A5A28/#EAF5EF · Caldo 🍲 #1A3A7A/#EAF0FC · Pollo desmenuzado 🍗 #C89000/#FFFBEE
-
-SHOPS (lista de compras)
-Generá la lista de compras basándote en lo que el plan y el batch realmente necesitan.
-Usá exactamente estos proveedores con sus IDs y metadata (NO inventar proveedores nuevos):
-
-Proveedores fijos:
-- { id:"dc", name:"Del Campo", sub:"Av. Sarmiento 2394 · pedir sábados", c:"#7A2A10", bg:"#FDF0EB" } — carnes vacunas, pollo y cerdo
-- { id:"nm", name:"Capitán Nemo", sub:"capitannemo.com.uy · delivery mismo día", c:"#0A3A6A", bg:"#E8F2FC", link:"https://www.capitannemo.com.uy/producto/salmon-chileno-1-kg/", altNote:"Alt.: Merluza $440/kg o Cazón $400/kg" } — pescado (solo si el plan tiene pescado)
-- { id:"qs", name:"El Establecimiento", sub:"Emilio Frugoni 949 · quincenal", c:"#7A5000", bg:"#FFF8EC" } — quesos
-- { id:"fe", name:"Feria", sub:"Sábado o martes · orgánicos cuando hay", c:"#0A5A28", bg:"#EAF5EF" } — verduras y frutas
-- { id:"di", name:"Disco / Géant", sub:"Reposición quincenal", c:"#1A3A7A", bg:"#EAF0FC" } — huevos, lácteos, secos
-
-Cada item dentro de un proveedor: { id:"dc1", name:"...", qty:"...", note:"precio/kg", eff:"~$costo", use:"Para qué del plan" }
-IDs: dc1,dc2.. para Del Campo, n1,n2.. Nemo, q1,q2.. Establecimiento, f1,f2.. Feria, d1,d2.. Disco.
-Incluí SOLO lo que este plan necesita. Si no hay salmón en el plan, no incluir Capitán Nemo.
-Calculá cantidades reales basadas en pax y recetas del plan.
-
-REGLA ANTI-REPETICIÓN
-Evitá repetir los mismos platos de la semana anterior. Variá las proteínas, los cortes, los sides y las preparaciones. La familia quiere sentir que cada semana es diferente.
-
-Sin markdown, sin texto extra.`;
-
   const callApi = async (prompt) => {
     setStreamText("");
     const res = await fetch("/api/generate-plan", {
@@ -432,8 +391,8 @@ Sin markdown, sin texto extra.`;
     if (!changes.trim()) return;
     setStatus("generating"); setErr("");
     try {
-      const prevWeek = (activePlan?.week || DEFAULT_WEEK).map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
-      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan de la SEMANA ANTERIOR (no repetir estos platos):\n${JSON.stringify(prevWeek)}\n\nCambios/pedidos para la nueva semana: "${changes}"\n\nGenerá un plan semanal DIFERENTE al anterior. Variá proteínas, cortes, sides y preparaciones.\n\n${JSON_INSTRUCTIONS}`;
+      const weeks = recentWeeks?.length ? recentWeeks : [activePlan?.week || DEFAULT_WEEK];
+      const prompt = buildPlanPrompt({ recentWeeks: weeks, changes });
       const result = await callApi(prompt);
       const missing = [!result.week && "week", !result.batch && "batch", !result.shops && "shops"].filter(Boolean);
       if (missing.length) throw new Error(`Respuesta incompleta — falta: ${missing.join(", ")}. Intentá de nuevo.`);
@@ -449,8 +408,7 @@ Sin markdown, sin texto extra.`;
     if (!followUp.trim()) return;
     setStatus("refining"); setErr("");
     try {
-      const previewWeek = preview.week.map(d => ({ day:d.day, lunch:d.lunch||d.sug, dinner:d.din }));
-      const prompt = `${PLAN_SYSTEM_CONTEXT}\n\nPlan propuesto: ${JSON.stringify(previewWeek)}\n\nEl usuario revisó el plan y pide estos ajustes: "${followUp}"\n\nModificá el plan según lo pedido, manteniendo lo que no se mencionó.\n\n${JSON_INSTRUCTIONS}`;
+      const prompt = buildRefinePrompt({ previewWeek: preview.week, followUp });
       const result = await callApi(prompt);
       const missing = [!result.week && "week", !result.batch && "batch", !result.shops && "shops"].filter(Boolean);
       if (missing.length) throw new Error(`Respuesta incompleta — falta: ${missing.join(", ")}. Intentá de nuevo.`);
