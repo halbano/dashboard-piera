@@ -86,6 +86,8 @@ export default async (req) => {
           generationConfig: {
             maxOutputTokens: 8192,
             responseMimeType: "application/json",
+            // Disable thinking so the whole token budget goes to the JSON answer.
+            thinkingConfig: { thinkingBudget: 0 },
           },
         }),
       }
@@ -110,6 +112,12 @@ export default async (req) => {
       const reader = apiRes.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
+      let sawText = false;
+      let lastFinish = null;
+      let blockReason = null;
+
+      const sendErr = (error) =>
+        writer.write(encoder.encode(`data: ${JSON.stringify({ error })}\n\n`));
 
       try {
         while (true) {
@@ -124,25 +132,30 @@ export default async (req) => {
             if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
             try {
               const evt = JSON.parse(line.slice(6));
+              if (evt.promptFeedback?.blockReason) blockReason = evt.promptFeedback.blockReason;
               const candidate = evt.candidates?.[0];
               const text = candidate?.content?.parts?.[0]?.text;
               if (text) {
+                sawText = true;
                 await writer.write(
                   encoder.encode(`data: ${JSON.stringify({ t: text })}\n\n`)
                 );
               }
+              if (candidate?.finishReason) lastFinish = candidate.finishReason;
               if (candidate?.finishReason === "MAX_TOKENS") {
-                await writer.write(
-                  encoder.encode(`data: ${JSON.stringify({ error: "Respuesta truncada (max_tokens). Intentá de nuevo." })}\n\n`)
-                );
+                await sendErr("Respuesta truncada (max_tokens). Intentá de nuevo.");
               }
             } catch {}
           }
         }
+
+        // No usable text ever arrived — surface why instead of a generic parse error.
+        if (!sawText && lastFinish !== "MAX_TOKENS") {
+          if (blockReason) await sendErr(`Gemini bloqueó el prompt (${blockReason}).`);
+          else await sendErr(`Gemini no devolvió contenido (finishReason: ${lastFinish || "desconocido"}). Intentá de nuevo.`);
+        }
       } catch (e) {
-        await writer.write(
-          encoder.encode(`data: ${JSON.stringify({ error: e.message })}\n\n`)
-        );
+        await sendErr(e.message);
       }
 
       await writer.write(encoder.encode("data: [DONE]\n\n"));

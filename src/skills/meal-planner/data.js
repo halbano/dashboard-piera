@@ -265,4 +265,7 @@ Calculá cantidades reales basadas en pax y recetas del plan.
 REGLA ANTI-REPETICIÓN
 Evitá repetir los mismos platos de la semana anterior. Variá las proteínas, los cortes, los sides y las preparaciones. La familia quiere sentir que cada semana es diferente.
 
-Sin markdown, sin texto extra.`;
+FORMATO DE SALIDA (obligatorio)
+Devolvé ÚNICAMENTE el objeto JSON. El primer carácter debe ser { y el último }.
+No incluyas markdown, bloques de código, comentarios, ni ningún texto antes o después.
+El JSON debe tener las tres claves de nivel superior: "week" (7 días), "batch" y "shops".`;

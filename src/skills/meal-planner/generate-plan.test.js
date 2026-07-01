@@ -139,6 +139,26 @@ describe("generate-plan serverless function", () => {
     expect(errors[0].error).toContain("truncada");
   });
 
+  it("forwards a descriptive error when Gemini returns no text (blocked/empty)", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
+    const encoder = new TextEncoder();
+    const emptyStream = new ReadableStream({
+      start(controller) {
+        const evt = { candidates: [{ content: { parts: [] }, finishReason: "SAFETY" }] };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
+        controller.close();
+      },
+    });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, body: emptyStream }));
+    const mod = await import("../../../../netlify/functions/generate-plan.js");
+    handler = mod.default;
+    const res = await handler(mockReq({ prompt: "test" }));
+    const events = await collectSSE(res);
+    const errors = events.filter(e => e.error);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].error).toContain("SAFETY");
+  });
+
   it("handles Gemini API error responses", async () => {
     process.env.GEMINI_API_KEY = "test-key";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
