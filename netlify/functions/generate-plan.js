@@ -34,7 +34,7 @@ export default async (req) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Mock mode: stream a known-good plan without hitting Anthropic
+  // Mock mode: stream a known-good plan without hitting the LLM
   if (process.env.MOCK_PLAN === "true") {
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
@@ -54,13 +54,15 @@ export default async (req) => {
     });
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    return new Response(`data: ${JSON.stringify({ error: "ANTHROPIC_API_KEY not configured" })}\n\n`, {
+    return new Response(`data: ${JSON.stringify({ error: "GEMINI_API_KEY not configured" })}\n\n`, {
       status: 200,
       headers: { "Content-Type": "text/event-stream" },
     });
   }
+
+  const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
   try {
     const { prompt } = await req.json();
@@ -71,20 +73,23 @@ export default async (req) => {
       });
     }
 
-    const apiRes = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 8192,
-        stream: true,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
+    const apiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey,
+        },
+        body: JSON.stringify({
+          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: 8192,
+            responseMimeType: "application/json",
+          },
+        }),
+      }
+    );
 
     if (!apiRes.ok) {
       const errBody = await apiRes.text();
@@ -96,7 +101,7 @@ export default async (req) => {
       });
     }
 
-    // Pipe Anthropic SSE → simplified SSE to client
+    // Pipe Gemini SSE → simplified SSE to client
     const { readable, writable } = new TransformStream();
     const writer = writable.getWriter();
     const encoder = new TextEncoder();
@@ -119,12 +124,14 @@ export default async (req) => {
             if (!line.startsWith("data: ") || line === "data: [DONE]") continue;
             try {
               const evt = JSON.parse(line.slice(6));
-              if (evt.type === "content_block_delta" && evt.delta?.text) {
+              const candidate = evt.candidates?.[0];
+              const text = candidate?.content?.parts?.[0]?.text;
+              if (text) {
                 await writer.write(
-                  encoder.encode(`data: ${JSON.stringify({ t: evt.delta.text })}\n\n`)
+                  encoder.encode(`data: ${JSON.stringify({ t: text })}\n\n`)
                 );
               }
-              if (evt.type === "message_delta" && evt.delta?.stop_reason === "max_tokens") {
+              if (candidate?.finishReason === "MAX_TOKENS") {
                 await writer.write(
                   encoder.encode(`data: ${JSON.stringify({ error: "Respuesta truncada (max_tokens). Intentá de nuevo." })}\n\n`)
                 );

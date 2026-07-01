@@ -33,17 +33,21 @@ function mockReq(body, method = "POST") {
   };
 }
 
-/** Helper: create a fake Anthropic SSE stream */
-function fakeAnthropicStream(textChunks, stopReason = "end_turn") {
+/** Helper: create a fake Gemini SSE stream (streamGenerateContent?alt=sse) */
+function fakeGeminiStream(textChunks, finishReason = "STOP") {
   const encoder = new TextEncoder();
   return new ReadableStream({
     start(controller) {
-      for (const text of textChunks) {
-        const evt = { type: "content_block_delta", delta: { text } };
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n`));
-      }
-      const msgDelta = { type: "message_delta", delta: { stop_reason: stopReason } };
-      controller.enqueue(encoder.encode(`data: ${JSON.stringify(msgDelta)}\n`));
+      textChunks.forEach((text, i) => {
+        const last = i === textChunks.length - 1;
+        const evt = {
+          candidates: [{
+            content: { parts: [{ text }], role: "model" },
+            ...(last ? { finishReason } : {}),
+          }],
+        };
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(evt)}\n\n`));
+      });
       controller.close();
     },
   });
@@ -63,7 +67,7 @@ describe("generate-plan serverless function", () => {
   });
 
   it("returns 405 for non-POST requests", async () => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.GEMINI_API_KEY = "test-key";
     const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({}, "GET"));
@@ -71,16 +75,16 @@ describe("generate-plan serverless function", () => {
   });
 
   it("returns error when API key is missing", async () => {
-    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.GEMINI_API_KEY;
     const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({ prompt: "test" }));
     const text = await res.text();
-    expect(text).toContain("ANTHROPIC_API_KEY not configured");
+    expect(text).toContain("GEMINI_API_KEY not configured");
   });
 
   it("returns error when prompt is missing", async () => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
+    process.env.GEMINI_API_KEY = "test-key";
     const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
     const res = await handler(mockReq({}));
@@ -105,12 +109,12 @@ describe("generate-plan serverless function", () => {
     expect(events[events.length - 1]).toEqual({ done: true });
   });
 
-  it("transforms Anthropic SSE into simplified SSE", async () => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
+  it("transforms Gemini SSE into simplified SSE", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
     const planJson = '{"week":[{"day":"Lunes"}]}';
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
-      body: fakeAnthropicStream([planJson]),
+      body: fakeGeminiStream([planJson]),
     }));
     const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
@@ -120,11 +124,11 @@ describe("generate-plan serverless function", () => {
     expect(textChunks.map(e => e.t).join("")).toBe(planJson);
   });
 
-  it("forwards truncation error when stop_reason is max_tokens", async () => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
+  it("forwards truncation error when finishReason is MAX_TOKENS", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: true,
-      body: fakeAnthropicStream(['{"partial":'], "max_tokens"),
+      body: fakeGeminiStream(['{"partial":'], "MAX_TOKENS"),
     }));
     const mod = await import("../../../../netlify/functions/generate-plan.js");
     handler = mod.default;
@@ -135,8 +139,8 @@ describe("generate-plan serverless function", () => {
     expect(errors[0].error).toContain("truncada");
   });
 
-  it("handles Anthropic API error responses", async () => {
-    process.env.ANTHROPIC_API_KEY = "test-key";
+  it("handles Gemini API error responses", async () => {
+    process.env.GEMINI_API_KEY = "test-key";
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
       ok: false,
       status: 429,
