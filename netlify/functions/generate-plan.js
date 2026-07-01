@@ -64,62 +64,63 @@ export default async (req) => {
 
   const model = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
+  let prompt;
   try {
-    const { prompt } = await req.json();
-    if (!prompt) {
-      return new Response(`data: ${JSON.stringify({ error: "Missing prompt" })}\n\n`, {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-      });
-    }
+    ({ prompt } = await req.json());
+  } catch {
+    prompt = null;
+  }
+  if (!prompt) {
+    return new Response(`data: ${JSON.stringify({ error: "Missing prompt" })}\n\n`, {
+      status: 200,
+      headers: { "Content-Type": "text/event-stream" },
+    });
+  }
 
-    const apiRes = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey,
-        },
-        body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
-          generationConfig: {
-            maxOutputTokens: 8192,
-            responseMimeType: "application/json",
-            // Disable thinking so the whole token budget goes to the JSON answer.
-            thinkingConfig: { thinkingBudget: 0 },
+  // Return the stream immediately; do the Gemini fetch INSIDE the writer so its
+  // latency never counts against the function's initial-return timeout.
+  const { readable, writable } = new TransformStream();
+  const writer = writable.getWriter();
+  const encoder = new TextEncoder();
+
+  const sendErr = (error) =>
+    writer.write(encoder.encode(`data: ${JSON.stringify({ error })}\n\n`));
+
+  (async () => {
+    try {
+      const apiRes = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": apiKey,
           },
-        }),
-      }
-    );
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 8192,
+              responseMimeType: "application/json",
+              // Disable thinking so the whole token budget goes to the JSON answer.
+              thinkingConfig: { thinkingBudget: 0 },
+            },
+          }),
+        }
+      );
 
-    if (!apiRes.ok) {
-      const errBody = await apiRes.text();
-      let msg = `API returned ${apiRes.status}`;
-      try { msg = JSON.parse(errBody).error?.message || msg; } catch {}
-      return new Response(`data: ${JSON.stringify({ error: msg })}\n\n`, {
-        status: 200,
-        headers: { "Content-Type": "text/event-stream" },
-      });
-    }
+      if (!apiRes.ok) {
+        const errBody = await apiRes.text();
+        let msg = `API returned ${apiRes.status}`;
+        try { msg = JSON.parse(errBody).error?.message || msg; } catch {}
+        await sendErr(msg);
+      } else {
+        const reader = apiRes.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let sawText = false;
+        let lastFinish = null;
+        let blockReason = null;
 
-    // Pipe Gemini SSE → simplified SSE to client
-    const { readable, writable } = new TransformStream();
-    const writer = writable.getWriter();
-    const encoder = new TextEncoder();
-
-    (async () => {
-      const reader = apiRes.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let sawText = false;
-      let lastFinish = null;
-      let blockReason = null;
-
-      const sendErr = (error) =>
-        writer.write(encoder.encode(`data: ${JSON.stringify({ error })}\n\n`));
-
-      try {
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -154,26 +155,21 @@ export default async (req) => {
           if (blockReason) await sendErr(`Gemini bloqueó el prompt (${blockReason}).`);
           else await sendErr(`Gemini no devolvió contenido (finishReason: ${lastFinish || "desconocido"}). Intentá de nuevo.`);
         }
-      } catch (e) {
-        await sendErr(e.message);
       }
+    } catch (e) {
+      await sendErr(e.message);
+    }
 
-      await writer.write(encoder.encode("data: [DONE]\n\n"));
-      await writer.close();
-    })();
+    await writer.write(encoder.encode("data: [DONE]\n\n"));
+    await writer.close();
+  })();
 
-    return new Response(readable, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-      },
-    });
-  } catch (e) {
-    return new Response(`data: ${JSON.stringify({ error: e.message })}\n\n`, {
-      status: 200,
-      headers: { "Content-Type": "text/event-stream" },
-    });
-  }
+  return new Response(readable, {
+    headers: {
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+    },
+  });
 };
 
 export const config = {
